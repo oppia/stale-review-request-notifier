@@ -32,7 +32,7 @@ PARSER = argparse.ArgumentParser(
 PARSER.add_argument(
     '--token',
     type=str,
-    help='The github-token to be used for creating github discussions.')
+    help='The github-token to be used for creating comment in github discussion.')
 PARSER.add_argument(
     '--repo',
     type=str,
@@ -56,12 +56,16 @@ PARSER.add_argument(
 PARSER.add_argument(
     '--test_mode',
     type=bool,
-    help='Run the program in test mode and do not send notifications.')
+    help='Run the program in test mode and do not create comments.')
 
 
 def generate_message(username: str, pr_list: str) -> str:
     """Generates message using the template provided in
     PENDING_REVIEW_NOTIFICATION_TEMPLATE.md.
+
+    Args:
+        username: str. Reviewer username.
+        pr_list: str. List of PRs not reviewed within max wait hours.
     """
     template_path = '.github/PENDING_REVIEW_NOTIFICATION_TEMPLATE.md'
     if not os.path.exists(template_path):
@@ -85,7 +89,17 @@ def send_notification(
     discussion_title: str,
     test_mode: Optional[str]
 ) -> None:
-    """Sends notification on github-discussion."""
+    """Sends notification on github-discussion.
+
+    Args:
+        username: str. GitHub username of the reviewer.
+        pull_requests: List. List of pending PRs.
+        org_name: str. The GitHub org name.
+        repo: str. The GitHub repo name.
+        discussion_category: str. category name to post comment.
+        discussion_title: str. Discussion title name.
+        test_mode: str | None. Whether running for test or not.
+    """
     pr_list_messages: List[str] = []
     for pull_request in pull_requests:
         assignee = pull_request.get_assignee(username)
@@ -106,7 +120,11 @@ def send_notification(
 
 
 def main(args: Optional[List[str]]=None) -> Literal[0]:
-    """The main function to execute the workflow."""
+    """The main function to execute the workflow.
+
+    Args:
+        args: list. A list of arguments to parse.
+    """
     parsed_args = PARSER.parse_args(args=args)
 
     org_name, repo = parsed_args.repo.split('/')

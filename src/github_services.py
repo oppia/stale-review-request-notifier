@@ -33,7 +33,10 @@ ISSUE_TIMELINE_URL_TEMPLATE = (
 
 
 def init_service(token: Optional[str]=None) -> None:
-    """Initialize service with the given token."""
+    """Initialize service with the given token.
+    Args:
+        token: str|None. the github token or None if no token is given.
+    """
     if token is None:
         raise Exception('Must provide Github Personal Access Token.')
 
@@ -41,13 +44,15 @@ def init_service(token: Optional[str]=None) -> None:
     _TOKEN = token
 
 
-# Here we use type Any because.
+# Here we use type Any because the decorated function can take any number of arguments
+# of any type and return a value of any type.
 def check_token(func: Callable[..., Any]) -> Callable[..., Any]:
     """A decorator to check whether the service is initialized with
     the token.
     """
 
-    # Here we use type Any because.
+    # Here we use type Any because the function can take any number of arguments of any
+    # type and return a value of any type.
     def execute_if_token_initialized(*args: Any, **kwargs: Any) -> Any:
         """Executes the given function if the token is initialized."""
         if _TOKEN is None:
@@ -75,6 +80,14 @@ def get_prs_assigned_to_reviewers(
 ) -> DefaultDict[str, List[github_domain.PullRequest]]:
     """Fetches all the PRs on the given repository and returns a list of PRs
     assigned to reviewers.
+
+    Args:
+        org_name: str. name of the github organization.
+        repository: str. name of the github repository.
+        wait_hours: int. The threshold to count a PR for discussion comment.
+    Returns:
+        dict. A dictionary that represents a reviewer and the PRs the reviewer
+        is assigned to.
     """
 
     pr_url = PULL_REQUESTS_URL_TEMPLATE.format(org_name, repository)
@@ -111,21 +124,22 @@ def get_prs_assigned_to_reviewers(
                 pending_review_time = (
                     datetime.datetime.now(datetime.timezone.utc) -
                     reviewer.timestamp)
-                if (reviewer.name != pull_request.author) and (
+                if (reviewer.username != pull_request.author_username) and (
                     pending_review_time >=
                     datetime.timedelta(hours=wait_hours)
                 ):
-                    reviewer_to_assigned_prs[reviewer.name].append(pull_request)
+                    reviewer_to_assigned_prs[reviewer.username].append(pull_request)
     return reviewer_to_assigned_prs
 
 
 # Here we use type Any because the response we get from the api call is hard
-# to annotate in a typedDict, Hence used type Any.
+# to annotate in a typedDict.
 def __process_activity(
     pull_request: github_domain.PullRequest,
     event: Dict[str, Any]
 ) -> None:
-    """Process activity and updates assignee timestamps."""
+    """Process activity and updates assignee timestamps.
+    """
     if event['event'] != 'assigned':
         return
 
@@ -178,6 +192,9 @@ def create_discussion_comment(
 ) -> None:
     """Comment in the existing GitHub discussion."""
 
+    # Here this query is written in GraphQL and is being used to fetch data about the
+    # existing github discussions. This helps to find out the discussion where we want
+    # to comment. To learn more, check this out https://docs.github.com/en/graphql.
     query = """
         query ($org_name: String!, $repository: String!) {
             repository(owner: $org_name, name: $repository) {
@@ -235,6 +252,10 @@ def create_discussion_comment(
     if discussion_id is None:
         raise Exception(f'{discussion_category} category is missing in GitHub Discussion.')
 
+    # Here, the below code written in GraphQL is being used to perform a mutation operation.
+    # More specifically, we are using it to comment in github discussion to let reviewers
+    # know about some of their pending tasks. To learn more, check this out
+    # https://docs.github.com/en/graphql.
     query = """
         mutation comment($discussion_id: ID!, $comment: String!) {
             addDiscussionComment(input: {discussionId: $discussion_id, body: $comment}) {

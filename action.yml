@@ -1,5 +1,5 @@
 name: Send pending review notifications to reviewer on github-discussion
-description: 'Send pending review notifications on team-discussion'
+description: 'Send pending review notifications on github-discussion.'
 inputs:
   category-name:
     description: 'The category name the discussion belongs to.'
@@ -20,7 +20,7 @@ runs:
     - name: Install dependencies
       run: pip install -r ${{ github.action_path }}/requirements.txt
       shell: bash
-    - name: Add path to enviornment
+    - name: Add path to environment
       run: echo "PYTHONPATH=${{ github.action_path }}" >> $GITHUB_PATH; echo $GITHUB_PATH
       shell: bash
     - name: Send notification
