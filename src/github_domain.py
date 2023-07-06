@@ -59,12 +59,10 @@ class Assignee:
         hours, _ = divmod(delta.seconds, 3600)
         waiting_time = []
         if days:
-            waiting_time.append(f'{days} day{1}'.format(
-                's' if days > 1 else ''))
+            waiting_time.append(f'{days} day{"s" if days > 1 else ""}')
 
         if hours:
-            waiting_time.append(f'{hours} hour{1}'.format(
-                's' if hours > 1 else ''))
+            waiting_time.append(f'{hours} hour{"s" if hours > 1 else ""}')
 
         return ', '.join(waiting_time)
 
