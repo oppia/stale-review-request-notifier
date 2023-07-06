@@ -49,21 +49,6 @@ Action to send notifications to reviewers on github-discussion when they miss re
       - Don't use space in `category_name` or `discussion_title`; otherwise, they will be considered different arguments.
       - The [POSIX cron syntax](https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html#tag_20_25_07) needs to be quoted as * is a special character in YAML.
 
-4. Add PENDING_REVIEW_NOTIFICATION_TEMPLATE.yml file in `.github/` dir.
-
-   Example:
-   ```
-   Hi {{ username }},
-
-   It looks like you haven't reviewed the following PRs within the expected time:
-   {{ pr_list }}
-
-   Can you please review the pending PRs as soon as possible?
-
-   Please make sure to reply to this thread once all the PRs are reviewed!
-   ```
-     **Important notes:**
-       - Template can have `username` and  `pr_list` placeholders which will eventually get replaced with the reviewer's username and the list of PRs waiting on their review respectively.
 
 ## Inputs
 
