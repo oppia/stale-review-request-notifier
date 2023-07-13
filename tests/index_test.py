@@ -207,23 +207,23 @@ class ModuleIntegrationTest(unittest.TestCase):
             text=json.dumps([]))
 
 
+    @patch('requests.post')
     def mock_post_discussion_request(self, mock_request):
         """Mock the API response made for fetching discussion data."""
 
-        request = mock_request.post(
-            github_services.GITHUB_GRAPHQL_URL,
-            text=json.dumps(self.response_for_discussions))
+        mock_request.return_value = self.response_for_discussions
+        result = github_services.get_discussions(self.orgName, self.repoName)
 
-        return request
+        return result
 
+    @patch('requests.post')
     def mock_post_comment_request(self, mock_request):
         """Mock the API response made for comment."""
 
-        request = mock_request.post(
-            github_services.GITHUB_GRAPHQL_URL,
-            text=json.dumps(self.response_for_comment))
+        mock_request.return_value = self.response_for_comment
+        result = github_services.post_comment('test_discussion_id_1', 'random')
 
-        return request
+        return result
 
     def test_executing_main_function_sends_notification(self):
         with requests_mock.Mocker() as mock_request:
@@ -235,7 +235,7 @@ class ModuleIntegrationTest(unittest.TestCase):
                 index.main([
                     '--repo', 'orgName/repo',
                     '--category', 'category',
-                    '--title', 'title'
+                    '--title', 'title',
                     '--max-wait-hours', '20',
                     '--token', 'githubTokenForApiRequest'
                 ])

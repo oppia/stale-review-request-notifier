@@ -182,15 +182,8 @@ def update_assignee_timestamp(
             page_number += 1
 
 
-@check_token
-def create_discussion_comment(
-    org_name: str,
-    repo: str,
-    discussion_category: str,
-    discussion_title: str,
-    body: str
-) -> None:
-    """Comment in the existing GitHub discussion."""
+def get_discussions(org_name: str, repo: str) -> Dict[Any, Any]:
+    """"""
 
     # Here this query is written in GraphQL and is being used to fetch data about the
     # existing github discussions. This helps to find out the discussion where we want
@@ -230,7 +223,51 @@ def create_discussion_comment(
         headers=_get_request_headers()
     )
 
-    data = response.json()
+    return response.json()
+
+
+def post_comment(discussion_id: str, message: str):
+    """"""
+
+    # Here, the below code written in GraphQL is being used to perform a mutation operation.
+    # More specifically, we are using it to comment in github discussion to let reviewers
+    # know about some of their pending tasks. To learn more, check this out
+    # https://docs.github.com/en/graphql.
+    query = """
+        mutation comment($discussion_id: ID!, $comment: String!) {
+            addDiscussionComment(input: {discussionId: $discussion_id, body: $comment}) {
+                clientMutationId
+                comment {
+                    id
+                }
+            }
+        }
+    """
+
+    variables = {
+        'discussion_id': discussion_id,
+        'comment': message
+    }
+
+    response = requests.post(
+        GITHUB_GRAPHQL_URL,
+        json={'query': query, 'variables': variables},
+        headers=_get_request_headers()
+    )
+    return response
+
+
+@check_token
+def create_discussion_comment(
+    org_name: str,
+    repo: str,
+    discussion_category: str,
+    discussion_title: str,
+    message: str
+) -> None:
+    """Comment in the existing GitHub discussion."""
+
+    data = get_discussions(org_name, repo)
 
     discussion_id = None
     discussion_categories = (
@@ -252,29 +289,6 @@ def create_discussion_comment(
     if discussion_id is None:
         raise Exception(f'{discussion_category} category is missing in GitHub Discussion.')
 
-    # Here, the below code written in GraphQL is being used to perform a mutation operation.
-    # More specifically, we are using it to comment in github discussion to let reviewers
-    # know about some of their pending tasks. To learn more, check this out
-    # https://docs.github.com/en/graphql.
-    query = """
-        mutation comment($discussion_id: ID!, $comment: String!) {
-            addDiscussionComment(input: {discussionId: $discussion_id, body: $comment}) {
-                clientMutationId
-                comment {
-                    id
-                }
-            }
-        }
-    """
 
-    variables = {
-        'discussion_id': discussion_id,
-        'comment': body
-    }
-
-    response = requests.post(
-        GITHUB_GRAPHQL_URL,
-        json={'query': query, 'variables': variables},
-        headers=_get_request_headers()
-    )
+    response = post_comment(discussion_id, message)
     response.raise_for_status()
