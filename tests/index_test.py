@@ -216,25 +216,6 @@ class ModuleIntegrationTest(unittest.TestCase):
                 self.orgName, self.repoName, 234) + param_page_2,
             text=json.dumps([]))
 
-
-    @patch('requests.post')
-    def mock_post_discussion_request(self, mock_request):
-        """Mock the API response made for fetching discussion data."""
-
-        mock_request.return_value = self.response_for_discussions
-        result = github_services.get_discussions(self.orgName, self.repoName)
-
-        return result
-
-    @patch('requests.post')
-    def mock_post_comment_request(self, mock_request):
-        """Mock the API response made for comment."""
-
-        mock_request.return_value = self.response_for_comment
-        result = github_services.post_comment('test_discussion_id_1', 'random')
-
-        return result
-
     def test_executing_main_function_sends_notification(self):
         with requests_mock.Mocker() as mock_request:
             self.mock_all_get_requests(mock_request)
