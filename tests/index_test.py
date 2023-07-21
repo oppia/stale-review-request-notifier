@@ -25,6 +25,21 @@ from src import index
 from src import github_services
 
 
+class GenerateMessageTests(unittest.TestCase):
+    """test generate message function."""
+
+    def test_generate_message(self):
+        
+        self.test_template = "{{ username }}\n{{ pr_list }}"
+        file_data = mock_open(read_data=self.test_template)
+        with patch("builtins.open", file_data):
+            pr_list = '- [#123](https://githuburl.pull/123) [Waiting for the last 2 days, 8 hours]'
+            response = index.generate_message('reviewerName1', pr_list)
+        mocked_response = ('@reviewerName1\n'
+            '- [#123](https://githuburl.pull/123) [Waiting for the last 2 days, 8 hours]')
+        self.assertEqual(mocked_response, response)
+   
+
 class ModuleIntegrationTest(unittest.TestCase):
     """Integration test for the send notification feature."""
     def setUp(self):
@@ -185,9 +200,8 @@ class ModuleIntegrationTest(unittest.TestCase):
 
             mock_resp_2 = Mock()
             mock_resp_2.json.return_value = self.response_for_comment
-
             with patch("requests.post", side_effect=[
-                mock_resp_1 if i % 2 == 0 else mock_resp_2 for i in range(6)]):
+                mock_resp_1 if i % 2 == 0 else mock_resp_2 for i in range(6)]) as mock_post:
 
                 request_1 = requests.post(github_services.GITHUB_GRAPHQL_URL)
                 request_2 = requests.post(github_services.GITHUB_GRAPHQL_URL)

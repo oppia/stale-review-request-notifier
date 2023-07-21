@@ -37,8 +37,8 @@ def init_service(token: Optional[str]=None) -> None:
     Args:
         token: str|None. the github token or None if no token is given.
     """
-    if token is None:
-        raise Exception('Must provide Github Personal Access Token.')
+    if token is None or token == '':
+        raise Exception('Must provide a valid Github Personal Access Token.')
 
     global _TOKEN # pylint: disable=global-statement
     _TOKEN = token

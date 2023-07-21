@@ -53,10 +53,6 @@ PARSER.add_argument(
     '--verbose',
     action='store_true',
     help='Whether to add important logs in the process.')
-PARSER.add_argument(
-    '--test_mode',
-    type=bool,
-    help='Run the program in test mode and do not create comments.')
 
 
 def generate_message(username: str, pr_list: str) -> str:
@@ -86,8 +82,7 @@ def send_notification(
     org_name: str,
     repo: str,
     discussion_category: str,
-    discussion_title: str,
-    test_mode: Optional[str]
+    discussion_title: str
 ) -> None:
     """Sends notification on github-discussion.
 
@@ -98,7 +93,6 @@ def send_notification(
         repo: str. The GitHub repo name.
         discussion_category: str. category name to post comment.
         discussion_title: str. Discussion title name.
-        test_mode: str | None. Whether running for test or not.
     """
     pr_list_messages: List[str] = []
     for pull_request in pull_requests:
@@ -110,10 +104,6 @@ def send_notification(
 
 
     body = generate_message(username, '\n'.join(pr_list_messages))
-
-    if test_mode:
-        logging.info('Logging notification comment in test mode: %s', body)
-        return
 
     github_services.create_discussion_comment(
         org_name, repo, discussion_category, discussion_title, body)
@@ -137,15 +127,10 @@ def main(args: Optional[List[str]]=None) -> Literal[0]:
     for arg in required_args:
         if arg is None:
             raise Exception(f'Please provide {arg} argument.')
-        
-    test_mode = os.getenv('TEST_MODE_ENV')
 
     if parsed_args.verbose:
         logging.basicConfig(
             format='%(levelname)s: %(message)s', level=logging.INFO)
-
-    if test_mode:
-        logging.warning('Running in test mode')
 
     github_services.init_service(parsed_args.token)
 
@@ -153,7 +138,7 @@ def main(args: Optional[List[str]]=None) -> Literal[0]:
         org_name, repo, max_wait_hours)
     for reviewer_name, prs in reviewer_to_assigned_prs.items():
         send_notification(
-            reviewer_name, prs, org_name, repo, discussion_category, discussion_title, test_mode)
+            reviewer_name, prs, org_name, repo, discussion_category, discussion_title)
 
     return 0
 
