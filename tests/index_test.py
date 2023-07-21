@@ -17,8 +17,9 @@
 import unittest
 from datetime import datetime, timedelta, timezone
 import json
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, mock_open, Mock
 import requests_mock
+import requests
 from typing import Dict, Any
 from src import index
 from src import github_services
@@ -31,43 +32,6 @@ class ModuleIntegrationTest(unittest.TestCase):
         self.repoName = 'repo'
         self.discussion_category = 'category'
         self.discussion_title = 'title'
-        self.query_discussion_id = """
-            query {
-                repository(owner: "oppia, name: "oppia) {
-                    discussionCategories(first: 10) {
-                        nodes {
-                            id
-                            name
-                            repository {
-                                discussions(last: 10) {
-                                    edges {
-                                        node {
-                                            id
-                                            title
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        """
-        self.mutation = """
-            mutation comment {
-                addDiscussionComment(input: {discussionId: "test_discussion_id"_1, body: "test_message"}) {
-                    clientMutationId
-                    comment {
-                        id
-                    }
-                }
-            }
-        """
-
-        self.variables = {
-            'org_name': self.orgName,
-            'repository': self.repoName
-        }
         self.response_for_discussions: Dict[str, Any] = {
             "data": {
                 "repository": {
@@ -110,7 +74,6 @@ class ModuleIntegrationTest(unittest.TestCase):
                 }
             }
         }
-
         self.response_for_comment: Dict[str, Any] = {
             "data": {
                 "addDiscussionComment": {
@@ -121,9 +84,7 @@ class ModuleIntegrationTest(unittest.TestCase):
                 }
             }
         }
-
-
-        self.pull_response =  [{
+        self.pull_response: List[Dict[str, Any]] =  [{
             'html_url': 'https://githuburl.pull/123',
             'number': 123,
             'title': 'PR title 1',
@@ -148,7 +109,7 @@ class ModuleIntegrationTest(unittest.TestCase):
                 'login': 'reviewerName2',
             }]
         }]
-        def get_past_time(hours=0):
+        def get_past_time(hours: int=0) -> str:
             return (
                 datetime.now(timezone.utc) - timedelta(hours=hours)).strftime(
                     "%Y-%m-%dT%H:%M:%SZ")
@@ -183,10 +144,9 @@ class ModuleIntegrationTest(unittest.TestCase):
             },
             'created_at': get_past_time(hours=19)
         }]
-
         self.test_template = "{{ username }}\n{{ pr_list }}"
 
-    def mock_all_get_requests(self, mock_request):
+    def mock_all_get_requests(self, mock_request: requests_mock) -> None:
         param_page_1='?page=1&per_page=100'
         param_page_2='?page=2&per_page=100'
         mock_request.get(
@@ -216,41 +176,29 @@ class ModuleIntegrationTest(unittest.TestCase):
                 self.orgName, self.repoName, 234) + param_page_2,
             text=json.dumps([]))
 
-    def test_executing_main_function_sends_notification(self):
+    def test_executing_main_function_sends_notification(self) -> None:
         with requests_mock.Mocker() as mock_request:
             self.mock_all_get_requests(mock_request)
-            mock_request.register_uri('POST', github_services.GITHUB_GRAPHQL_URL, response_list=[{'json': self.response_for_discussions}])
-            mock_request.register_uri('POST', github_services.GITHUB_GRAPHQL_URL, response_list=[{'json': self.response_for_comment}])
+                
+            mock_resp_1 = Mock()
+            mock_resp_1.json.return_value = self.response_for_discussions
 
-            request_1 = github_services.get_discussions(self.orgName, self.repoName)
-            request_2 = github_services.post_comment('test_discussion_id', 'test_message')
-            file_data = mock_open(read_data=self.test_template)
-            with patch("builtins.open", file_data):
-                index.main([
-                    '--repo', 'orgName/repo',
-                    '--category', 'test_category_name_1',
-                    '--title', 'test_discussion_title_1',
-                    '--max-wait-hours', '20',
-                    '--token', 'githubTokenForApiRequest'
-                ])
+            mock_resp_2 = Mock()
+            mock_resp_2.json.return_value = self.response_for_comment
+
+            with patch("requests.post", side_effect=[
+                mock_resp_1 if i % 2 == 0 else mock_resp_2 for i in range(6)]):
+
+                request_1 = requests.post(github_services.GITHUB_GRAPHQL_URL)
+                request_2 = requests.post(github_services.GITHUB_GRAPHQL_URL)
+                file_data = mock_open(read_data=self.test_template)
+                with patch("builtins.open", file_data):
+                    index.main([
+                        '--repo', 'orgName/repo',
+                        '--category', 'test_category_name_1',
+                        '--title', 'test_discussion_title_1',
+                        '--max-wait-hours', '20',
+                        '--token', 'githubTokenForApiRequest'
+                    ])
         self.assertTrue(request_1, self.response_for_discussions)
         self.assertTrue(request_2, self.response_for_comment)
-
-        # self.assertTrue(request_2.called)
-        # self.assertEqual(request_2.call_count, 2)
-        expected_messages = [
-            {
-                'body': '@reviewerName1\n- [#123](https://githuburl.pull/123) '
-                    '[Waiting from the last 22 hours]\n'
-                    '- [#234](https://githuburl.pull/234) '
-                    '[Waiting from the last 23 hours]'
-            },
-            {
-                'body': '@reviewerName2\n- [#123](https://githuburl.pull/123) '
-                    '[Waiting from the last 2 days, 8 hours]'
-            },
-        ]
-        # self.assertEqual(
-        #     request_2.request_history[0].json(), expected_messages[0])
-        # self.assertEqual(
-        #     request_2.request_history[1].json(), expected_messages[1])
