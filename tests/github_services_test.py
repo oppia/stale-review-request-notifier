@@ -219,7 +219,7 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertEqual(mock_request.call_count, 6)
 
     def test_create_discussion_comment(self) -> None:
-        """test create discussion comment."""
+        """Test create discussion comment."""
 
         token = 'my_github_token'
         github_services.init_service(token)

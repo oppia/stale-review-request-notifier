@@ -30,7 +30,7 @@ from typing import Any, Dict, List
 
 
 class GenerateMessageTests(unittest.TestCase):
-    """test generate message function."""
+    """Test generate message function."""
 
     def setUp(self) -> None:
         self.test_template = '{{ username }}\n{{ pr_list }}'
