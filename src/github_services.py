@@ -149,7 +149,7 @@ def __process_activity(
     pull_request: github_domain.PullRequest,
     event: Dict[str, Any]
 ) -> None:
-    """Process activity and updates assignee timestamps."""
+    """Process activity and update the respective timestamp when the assignee was assigned."""
     if event['event'] != 'assigned':
         return
 
