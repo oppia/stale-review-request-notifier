@@ -24,4 +24,4 @@ jobs:
       - name: Install Mypy
         run: pip install mypy
       - name: Run Mypy checks
-        run: mypy src/
+        run: mypy --strict .

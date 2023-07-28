@@ -1,4 +1,4 @@
-name: Send pending review notifications to reviewer on github-discussion
+name: Send pending review notifications to reviewer on GitHub Discussions
 description: 'Send pending review notifications on github-discussion.'
 inputs:
   category-name:
@@ -26,5 +26,5 @@ runs:
     - name: Send notification
       run: |
         cd ${{ github.action_path }}
-        python3 -m src.index --repo=${{ github.repository }} --category=${{ inputs.category-name }} --title=${{ inputs.discussion-title }} --token=${{ inputs.repo-token }} --max-wait-hours=${{ inputs.review-turnaround-hours}} --verbose
+        python3 -m src.main --repo=${{ github.repository }} --category=${{ inputs.category-name }} --title=${{ inputs.discussion-title }} --token=${{ inputs.repo-token }} --max-wait-hours=${{ inputs.review-turnaround-hours}} --verbose
       shell: bash
