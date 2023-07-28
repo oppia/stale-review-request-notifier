@@ -224,13 +224,31 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         token = 'my_github_token'
         github_services.init_service(token)
         with requests_mock.Mocker() as mock_requests:
+
+            # Mock all get requests.
             self.mock_all_get_requests(mock_requests)
 
+            # Here we are mocking the two post requests, we will use in the below test.
+            # One request for fetching all existing GitHub Discussions data and the next
+            # request to post a comment in the particular GitHub Discussion.
+
+            # Creating a Mock instance.
             mock_resp_1 = mock.Mock()
+            # Setting the return value of the Mock instance.
             mock_resp_1.json.return_value = self.response_for_discussions
+
+            # Creating a Mock instance.
             mock_resp_2 = mock.Mock()
+            # Setting the return value of the Mock instance.
             mock_resp_2.json.return_value = self.response_for_comment
 
+            # Here we are patching the POST requests using side_effect. So, when you put
+            # callables inside `side_effect`, it will iterate through the items and
+            # return each at a time. For our test, we are expecting total 4 post requests,
+            # two for each(fetching discussions and posting comment) alternatively. To
+            # understand the request count clearly, for our test data, we are calling
+            # them once each so two times and two times here below to assert the
+            # response.
             with mock.patch('requests.post', side_effect=[
                 mock_resp_1, mock_resp_2, mock_resp_1, mock_resp_2]) as mock_post:
                 response_1 = requests.post(github_services.GITHUB_GRAPHQL_URL, timeout=15)
