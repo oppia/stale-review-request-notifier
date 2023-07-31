@@ -32,6 +32,7 @@ GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql'
 PULL_REQUESTS_URL_TEMPLATE = 'https://api.github.com/repos/{0}/{1}/pulls'
 ISSUE_TIMELINE_URL_TEMPLATE = (
     'https://api.github.com/repos/{0}/{1}/issues/{2}/timeline')
+TIMEOUT = 15
 
 
 def init_service(token: Optional[str]=None) -> None:
@@ -82,15 +83,16 @@ def _get_request_headers() -> Dict[str, str]:
 def get_prs_assigned_to_reviewers(
     org_name: str,
     repository: str,
-    max_waiting_time: int
+    max_waiting_time_in_hours: int
 ) -> DefaultDict[str, List[github_domain.PullRequest]]:
     """Fetches all PRs and returns a list of PRs assigned to reviewers.
 
     Args:
         org_name: str. GitHub organization name.
         repository: str. GitHub repository name.
-        max_waiting_time: int. The maximum time in hour to wait for a review. Any PR
-            exceed that limit should be considered to notify the reviewer.
+        max_waiting_time_in_hours: int. The maximum time in hours to wait for a review.
+            If the waiting time for a PR review has exceeded this limit, the
+            corresponding reviewer should be notified.
 
     Returns:
         dict. A dictionary that represents the reviewer and the PRs, the reviewer
@@ -112,7 +114,7 @@ def get_prs_assigned_to_reviewers(
             pr_url,
             params=params,
             headers=_get_request_headers(),
-            timeout=15
+            timeout=TIMEOUT
         )
         response.raise_for_status()
         pr_subset = response.json()
@@ -130,14 +132,14 @@ def get_prs_assigned_to_reviewers(
                 continue
             for reviewer in pull_request.assignees:
                 # Since a reviewer was assigned, we are not expecting the respective
-                # timestamp(when the the reviewer was assigned) to be none.
+                # timestamp (when the reviewer was assigned) to be none.
                 assert reviewer.assigned_on_timestamp is not None
                 pending_review_time = (
                     datetime.datetime.now(datetime.timezone.utc) -
                     reviewer.assigned_on_timestamp)
                 if (reviewer.username != pull_request.author_username) and (
                     pending_review_time >=
-                    datetime.timedelta(hours=max_waiting_time)
+                    datetime.timedelta(hours=max_waiting_time_in_hours)
                 ):
                     reviewer_to_assigned_prs[reviewer.username].append(pull_request)
     return reviewer_to_assigned_prs
@@ -145,19 +147,20 @@ def get_prs_assigned_to_reviewers(
 
 # Here we use type Any because the response we get from the api call is hard
 # to annotate in a typedDict.
-def __process_activity(
+def __check_assignee_and_set_timestamp(
     pull_request: github_domain.PullRequest,
     event: Dict[str, Any]
 ) -> None:
-    """Process activity and update the respective timestamp when the assignee was assigned."""
+    """Check for assignee and update the respective timestamp when the assignee was assigned."""
     if event['event'] != 'assigned':
         return
 
     assignee = pull_request.get_assignee(event['assignee']['login'])
     event_timestamp = parser.parse(event['created_at'])
 
-    # If a reviewer is not assigned, the `assigned_on_timestamp` value will be None. The
-    # following code is checking that condition before setting the timestamp.
+    # We are using `None` to initialize the `assigned_on_timestamp` argument. So, before
+    # setting the timestamp, the following code is checking whether the value was `None`
+    # or not.
     if assignee:
         if assignee.assigned_on_timestamp:
             assignee.set_assigned_on_timestamp(
@@ -186,7 +189,7 @@ def update_assignee_timestamp(
                 headers={
                     'Accept': 'application/vnd.github+json',
                     'Authorization': f'token {_TOKEN}'},
-                timeout=15
+                timeout=TIMEOUT
             )
             response.raise_for_status()
             timeline_subset = response.json()
@@ -195,7 +198,7 @@ def update_assignee_timestamp(
                 break
 
             for event in timeline_subset:
-                __process_activity(pull_request, event)
+                __check_assignee_and_set_timestamp(pull_request, event)
 
             page_number += 1
 
@@ -246,7 +249,7 @@ def create_discussion_comment(
         GITHUB_GRAPHQL_URL,
         json={'query': query, 'variables': variables},
         headers=_get_request_headers(),
-        timeout=15
+        timeout=TIMEOUT
     )
     data = response.json()
 
@@ -272,7 +275,7 @@ def create_discussion_comment(
 
     # The following code is written in GraphQL and is being used to perform a mutation
     # operation. More specifically, we are using it to comment in GitHub discussion to
-    # let reviewers know about some of their pending tasks. To learn more, check this out
+    # let reviewers know about some of their pending tasks. To learn more, check this out:
     # https://docs.github.com/en/graphql.
     query = """
         mutation comment($discussion_id: ID!, $comment: String!) {
@@ -294,6 +297,6 @@ def create_discussion_comment(
         GITHUB_GRAPHQL_URL,
         json={'query': query, 'variables': variables},
         headers=_get_request_headers(),
-        timeout=15
+        timeout=TIMEOUT
     )
     response.raise_for_status()

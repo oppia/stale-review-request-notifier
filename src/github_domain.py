@@ -57,7 +57,7 @@ class Assignee:
         """
 
         # Since a reviewer was assigned, we are not expecting the respective
-        # timestamp(when the the reviewer was assigned) to be none.
+        # timestamp (when the reviewer was assigned) to be none.
         assert self.assigned_on_timestamp is not None
         delta = datetime.datetime.now(datetime.timezone.utc) - self.assigned_on_timestamp
         days = delta.days

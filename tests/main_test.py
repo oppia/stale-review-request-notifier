@@ -229,37 +229,38 @@ class ModuleIntegrationTest(unittest.TestCase):
 
         with requests_mock.Mocker() as mock_request:
 
-            # Mock all get requests.
             self.mock_all_get_requests(mock_request)
 
-            # Here we are mocking the two post requests, we will use in the below test.
-            # One request for fetching all existing GitHub Discussions data and the next
-            # request to post a comment in the particular GitHub Discussion.
+            # Here we are mocking the two POST requests that we will use in the test below.
+            # One request fetches all existing GitHub Discussions data, and the next
+            # request posts a comment in the particular GitHub Discussion.
+            mock_response_1 = mock.Mock()
+            mock_response_1.json.return_value = self.response_for_discussions
+            mock_response_2 = mock.Mock()
+            mock_response_2.json.return_value = self.response_for_comment
 
-            # Creating a Mock instance.
-            mock_resp_1 = mock.Mock()
-            # Setting the return value of the Mock instance.
-            mock_resp_1.json.return_value = self.response_for_discussions
-
-            # Creating a Mock instance.
-            mock_resp_2 = mock.Mock()
-            # Setting the return value of the Mock instance.
-            mock_resp_2.json.return_value = self.response_for_comment
+            self.assertTrue(mock_response_1.assert_not_called)
+            self.assertTrue(mock_response_2.assert_not_called)
 
             # Here we are patching the POST requests using side_effect. So, when you put
             # callables inside `side_effect`, it will iterate through the items and
-            # return each at a time. For our test, we are expecting total 6 post requests,
-            # three for each(fetching discussions and posting comment) alternatively. To
+            # return each at a time. For our test, we are expecting total 6 POST requests,
+            # three for each (fetching discussions and posting comment) alternatively. To
             # understand the request count clearly, for our test data, we are calling
             # them twice each so four times and two times here below to assert the
             # response.
             with mock.patch(
                 'requests.post', side_effect=[
-                    mock_resp_1 if i % 2 == 0 else mock_resp_2 for i in range(6)
+                    mock_response_1 if i % 2 == 0 else mock_response_2 for i in range(6)
                 ]) as mock_post:
 
-                response_1 = requests.post(github_services.GITHUB_GRAPHQL_URL, timeout=15)
-                request_2 = requests.post(github_services.GITHUB_GRAPHQL_URL, timeout=15)
+                self.assertEqual(mock_request.call_count, 0)
+                self.assertEqual(mock_post.call_count, 0)
+
+                response_1 = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT)
+                request_2 = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT)
                 file_data = mock.mock_open(read_data=self.test_template)
                 with mock.patch('builtins.open', file_data):
                     main.main([
@@ -269,8 +270,8 @@ class ModuleIntegrationTest(unittest.TestCase):
                         '--max-wait-hours', '20',
                         '--token', 'githubTokenForApiRequest'
                     ])
-        self.assertTrue(mock_resp_1.assert_called)
-        self.assertTrue(mock_resp_2.assert_called)
+        self.assertTrue(mock_response_1.assert_called)
+        self.assertTrue(mock_response_2.assert_called)
         self.assertEqual(mock_post.call_count, 6)
         self.assertEqual(mock_request.call_count, 6)
 
