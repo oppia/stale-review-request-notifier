@@ -124,7 +124,7 @@ def get_prs_assigned_to_reviewers(
         page_number += 1
 
         pull_requests: List[github_domain.PullRequest] = [
-            get_pull_request_object(org_name, repo_name, pull_request)
+            get_pull_request_object_from_dict(org_name, repo_name, pull_request)
             for pull_request in pr_subset
         ]
 
@@ -145,12 +145,13 @@ def get_prs_assigned_to_reviewers(
 
 # Here we use type Any because the response we get from the api call is hard
 # to annotate in a typedDict.
-def get_pull_request_object(
+@check_token
+def get_pull_request_object_from_dict(
     org_name: str,
     repo_name: str,
     pr_dict: Dict[str, Any]
 ) -> github_domain.PullRequest:
-    """Fetch PR timelines and create Pull Request objects."""
+    """Fetch PR timelines and create Pull Request objects from response dictionary."""
 
     pr_number = pr_dict['number']
     activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(

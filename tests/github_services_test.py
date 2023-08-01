@@ -20,8 +20,10 @@ import datetime
 import json
 import unittest
 from unittest import mock
+from dateutil.tz import tzutc
+from dateutil import parser
 
-from src import github_services
+from src import github_services, github_domain
 
 import requests
 import requests_mock
@@ -205,6 +207,47 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
             github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
                 self.org_name, self.repo_name, 234) + param_page_2,
             text=json.dumps([]))
+
+    def test_get_pull_request_object_from_dict(self) -> None:
+
+        token = 'my_github_token'
+        github_services.init_service(token)
+        mocked_response = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123,
+            'title': 'PR title 1',
+            'user': {
+                'login': 'authorName',
+            },
+            'assignees': [{
+                'login': 'reviewerName1',
+            }, {
+                'login': 'reviewerName2',
+            }]
+        }
+        expected_response_dict: Dict[str, Any] = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123, 'title': 'PR title 1',
+            'user': {'login': 'authorName'},
+            'assignees': [
+                {'login': 'reviewerName1',
+                'created_at': datetime.datetime(2023, 7, 31, 22, 24, 38, tzinfo=tzutc())},
+                {'login': 'reviewerName2', 'created_at': datetime.datetime(2023, 7, 30, 12, 24, 38, tzinfo=tzutc())}
+            ]
+        }
+
+        with requests_mock.Mocker() as mock_request:
+            self.assertEqual(mock_request.call_count, 0)
+            self.mock_all_get_requests(mock_request)
+            response = github_services.get_pull_request_object_from_dict(
+                self.org_name, self.repo_name, mocked_response
+            )
+        self.assertEqual(mock_request.call_count, 2)
+        self.assertIsInstance(response, github_domain.PullRequest)
+        self.assertEqual(response.url, expected_response_dict['html_url'])
+        self.assertEqual(response.number, expected_response_dict['number'])
+        self.assertEqual(response.title, expected_response_dict['title'])
+        self.assertEqual(response.author_username, expected_response_dict['user']['login'])
 
     def test_get_prs_assigned_to_reviewers(self) -> None:
         token = 'my_github_token'
