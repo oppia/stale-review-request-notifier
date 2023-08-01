@@ -32,23 +32,6 @@ class AssigneeDomainUnitTest(unittest.TestCase):
         self.assertEqual(assignee.username, 'username')
         self.assertEqual(assignee.assigned_on_timestamp, datetime.datetime(1, 1, 1))
 
-    def test_constructor_without_timestamp_creates_object_with_default_value(
-        self
-    ) -> None:
-
-        assignee = github_domain.Assignee('username')
-        self.assertIsInstance(assignee, github_domain.Assignee)
-        self.assertEqual(assignee.username, 'username')
-        self.assertEqual(assignee.assigned_on_timestamp, None)
-
-    def test_set_assigned_on_timestamp_sets_correct_value(self) -> None:
-
-        assignee = github_domain.Assignee('username')
-        self.assertEqual(assignee.assigned_on_timestamp, None)
-
-        assignee.set_assigned_on_timestamp(datetime.datetime(1, 1, 1))
-        self.assertEqual(assignee.assigned_on_timestamp, datetime.datetime(1, 1, 1))
-
 
 class PullRequestDomainUnitTest(unittest.TestCase):
     """PullRequest class test."""

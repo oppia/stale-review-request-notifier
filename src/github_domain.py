@@ -27,24 +27,15 @@ class Assignee:
     def __init__(
         self,
         username: str,
-        assigned_on_timestamp: Optional[datetime.datetime] = None
+        assigned_on_timestamp: datetime.datetime
     ) -> None:
         """
         Args:
             username: str. GitHub username of the assignee.
-            assigned_on_timestamp: datetime|None. The time when the reviewer was
-                assigned, else None.
+            assigned_on_timestamp: datetime. The time when the reviewer was
+                assigned.
         """
         self.username = username
-        self.assigned_on_timestamp = assigned_on_timestamp
-
-    def set_assigned_on_timestamp(self, assigned_on_timestamp: datetime.datetime) -> None:
-        """Sets timestamp to assignee.
-
-        Args:
-            assigned_on_timestamp: datetime. The time when the reviewer was
-                assigned to the PR.
-        """
         self.assigned_on_timestamp = assigned_on_timestamp
 
     def get_waiting_time(self) -> str:
@@ -56,9 +47,6 @@ class Assignee:
             str. The waiting time in days and hours.
         """
 
-        # Since a reviewer was assigned, we are not expecting the respective
-        # timestamp (when the reviewer was assigned) to be none.
-        assert self.assigned_on_timestamp is not None
         delta = datetime.datetime.now(datetime.timezone.utc) - self.assigned_on_timestamp
         days = delta.days
         hours, _ = divmod(delta.seconds, 3600)
@@ -133,7 +121,7 @@ class PullRequest:
     ) -> PullRequest:
         """Create the object using the pull_request response."""
         assignees_dict = pr_dict['assignees']
-        assignees = [Assignee(a['login']) for a in assignees_dict]
+        assignees = [Assignee(a['login'], a['created_at']) for a in assignees_dict]
 
         pull_request = cls(
             url=pr_dict['html_url'],

@@ -82,14 +82,14 @@ def _get_request_headers() -> Dict[str, str]:
 @check_token
 def get_prs_assigned_to_reviewers(
     org_name: str,
-    repository: str,
+    repo_name: str,
     max_waiting_time_in_hours: int
 ) -> DefaultDict[str, List[github_domain.PullRequest]]:
     """Fetches all PRs and returns a list of PRs assigned to reviewers.
 
     Args:
         org_name: str. GitHub organization name.
-        repository: str. GitHub repository name.
+        repo_name: str. GitHub repository name.
         max_waiting_time_in_hours: int. The maximum time in hours to wait for a review.
             If the waiting time for a PR review has exceeded this limit, the
             corresponding reviewer should be notified.
@@ -99,7 +99,7 @@ def get_prs_assigned_to_reviewers(
         is assigned to.
     """
 
-    pr_url = PULL_REQUESTS_URL_TEMPLATE.format(org_name, repository)
+    pr_url = PULL_REQUESTS_URL_TEMPLATE.format(org_name, repo_name)
     reviewer_to_assigned_prs: (
         DefaultDict[str, List[github_domain.PullRequest]]) = (
         collections.defaultdict(list))
@@ -123,17 +123,15 @@ def get_prs_assigned_to_reviewers(
             break
         page_number += 1
 
-        pull_requests = [
-            github_domain.PullRequest.from_github_response(pull_request)
-            for pull_request in pr_subset]
-        update_assignee_timestamp(org_name, repository, pull_requests)
+        pull_requests: List[github_domain.PullRequest] = [
+            get_pull_request_object(org_name, repo_name, pull_request)
+            for pull_request in pr_subset
+        ]
+
         for pull_request in pull_requests:
             if not pull_request.is_reviewer_assigned():
                 continue
             for reviewer in pull_request.assignees:
-                # Since a reviewer was assigned, we are not expecting the respective
-                # timestamp (when the reviewer was assigned) to be none.
-                assert reviewer.assigned_on_timestamp is not None
                 pending_review_time = (
                     datetime.datetime.now(datetime.timezone.utc) -
                     reviewer.assigned_on_timestamp)
@@ -147,60 +145,58 @@ def get_prs_assigned_to_reviewers(
 
 # Here we use type Any because the response we get from the api call is hard
 # to annotate in a typedDict.
-def __check_assignee_and_set_timestamp(
-    pull_request: github_domain.PullRequest,
-    event: Dict[str, Any]
-) -> None:
-    """Check for assignee and update the respective timestamp when the assignee was assigned."""
-    if event['event'] != 'assigned':
-        return
-
-    assignee = pull_request.get_assignee(event['assignee']['login'])
-    event_timestamp = parser.parse(event['created_at'])
-
-    # We are using `None` to initialize the `assigned_on_timestamp` argument. So, before
-    # setting the timestamp, the following code is checking whether the value was `None`
-    # or not.
-    if assignee:
-        if assignee.assigned_on_timestamp:
-            assignee.set_assigned_on_timestamp(
-                max([assignee.assigned_on_timestamp, event_timestamp]))
-        else:
-            assignee.set_assigned_on_timestamp(event_timestamp)
-
-
-def update_assignee_timestamp(
+def get_pull_request_object(
     org_name: str,
-    repository: str,
-    pr_list: List[github_domain.PullRequest]
-) -> None:
-    """Fetches PR timeline and updates assignment timestamp."""
-    for pull_request in pr_list:
-        pr_number = pull_request.number
-        activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
-            org_name, repository, pr_number)
+    repo_name: str,
+    pr_dict: Dict[str, Any]
+) -> github_domain.PullRequest:
+    """Fetch PR timelines and create Pull Request objects."""
 
-        page_number = 1
-        while True:
-            logging.info('Fetching PR #%s timeline', pr_number)
-            response = requests.get(
-                activity_url,
-                params={'page': page_number, 'per_page': 100},
-                headers={
-                    'Accept': 'application/vnd.github+json',
-                    'Authorization': f'token {_TOKEN}'},
-                timeout=TIMEOUT
-            )
-            response.raise_for_status()
-            timeline_subset = response.json()
+    pr_number = pr_dict['number']
+    activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
+        org_name, repo_name, pr_number)
 
-            if len(timeline_subset) == 0:
-                break
+    page_number = 1
+    while True:
+        logging.info('Fetching PR #%s timeline', pr_number)
+        response = requests.get(
+            activity_url,
+            params={'page': page_number, 'per_page': 100},
+            headers={
+                'Accept': 'application/vnd.github+json',
+                'Authorization': f'token {_TOKEN}'},
+            timeout=TIMEOUT
+        )
+        response.raise_for_status()
+        timeline_subset = response.json()
 
-            for event in timeline_subset:
-                __check_assignee_and_set_timestamp(pull_request, event)
+        if len(timeline_subset) == 0:
+            break
 
-            page_number += 1
+        for event in timeline_subset:
+            if event['event'] != 'assigned':
+                continue
+            updated_pr_dict = get_pull_request_dict_with_timestamp(pr_dict, event)
+
+        page_number += 1
+
+    return github_domain.PullRequest.from_github_response(
+        updated_pr_dict)
+
+
+# Here we use type Any because the response we get from the api call is hard
+# to annotate in a typedDict.
+def get_pull_request_dict_with_timestamp(
+    pr_dict: Dict[str, Any],
+    event: Dict[str, Any]
+) -> Dict[str, Any]:
+    """Adds the timestamp in dictionary as a key value pair where the key is `created_at`
+    and the value is datetime when the reviewer was assigned."""
+
+    for assignee in pr_dict['assignees']:
+        if event['assignee']['login'] == assignee['login']:
+            assignee['created_at'] = parser.parse(event['created_at'])
+    return pr_dict
 
 
 @check_token
