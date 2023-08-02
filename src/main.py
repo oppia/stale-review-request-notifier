@@ -107,7 +107,7 @@ def send_notification(
         assignee = pull_request.get_assignee(username)
         assert assignee is not None
         pr_list_messages.append(
-            f'- [#{pull_request.number}]({pull_request.url}) [Waiting for the '
+            f'- [#{pull_request.pr_number}]({pull_request.url}) [Waiting for the '
             f'last {assignee.get_waiting_time()}]')
 
     message = generate_message(username, '\n'.join(pr_list_messages), TEMPLATE_PATH)

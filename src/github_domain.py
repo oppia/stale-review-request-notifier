@@ -69,7 +69,7 @@ class PullRequest:
     def __init__(
         self,
         url: str,
-        number: int,
+        pr_number: int,
         author_username: str,
         title: str,
         assignees: List[Assignee]
@@ -78,13 +78,13 @@ class PullRequest:
 
         Args:
             url: str. The url of the PR.
-            number: int. The PR number.
+            pr_number: int. The PR number.
             author_username: str. GitHub username of the PR Author.
             title: str. PR title.
             assignees: List(Assignee). List of assignees.
         """
         self.url = url
-        self.number = number
+        self.pr_number = pr_number
         self.author_username = author_username
         self.title = title
         self.assignees = assignees
@@ -110,7 +110,7 @@ class PullRequest:
         return assignee
 
     def __repr__(self) -> str:
-        return f'PR #{self.number} by {self.author_username}'
+        return f'PR #{self.pr_number} by {self.author_username}'
 
     # Here we use type Any because the response we get from the api call
     # is hard to annotate in a typedDict.
@@ -125,7 +125,7 @@ class PullRequest:
 
         pull_request = cls(
             url=pr_dict['html_url'],
-            number=pr_dict['number'],
+            pr_number=pr_dict['number'],
             title=pr_dict['title'],
             author_username=pr_dict['user']['login'],
             assignees=assignees

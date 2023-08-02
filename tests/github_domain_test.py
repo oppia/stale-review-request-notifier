@@ -46,7 +46,7 @@ class PullRequestDomainUnitTest(unittest.TestCase):
 
         self.assertIsInstance(pull_request, github_domain.PullRequest)
         self.assertEqual(pull_request.url, 'https://example.com')
-        self.assertEqual(pull_request.number, 123)
+        self.assertEqual(pull_request.pr_number, 123)
         self.assertEqual(pull_request.author_username, 'authorName')
         self.assertEqual(pull_request.title, 'PR title')
         self.assertEqual(pull_request.assignees, reviewers)

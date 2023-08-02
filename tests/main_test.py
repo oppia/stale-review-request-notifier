@@ -227,20 +227,20 @@ class ModuleIntegrationTest(unittest.TestCase):
     def test_executing_main_function_sends_notification(self) -> None:
         """Test main function to send notification."""
 
+        # Here we are mocking the two POST requests that we will use in the test below.
+        # One request fetches all existing GitHub Discussions data, and the next
+        # request posts a comment in the particular GitHub Discussion.
+        mock_response_1 = mock.Mock()
+        mock_response_1.json.return_value = self.response_for_discussions
+        mock_response_2 = mock.Mock()
+        mock_response_2.json.return_value = self.response_for_comment
+
+        self.assertTrue(mock_response_1.assert_not_called)
+        self.assertTrue(mock_response_2.assert_not_called)
+
         with requests_mock.Mocker() as mock_request:
 
             self.mock_all_get_requests(mock_request)
-
-            # Here we are mocking the two POST requests that we will use in the test below.
-            # One request fetches all existing GitHub Discussions data, and the next
-            # request posts a comment in the particular GitHub Discussion.
-            mock_response_1 = mock.Mock()
-            mock_response_1.json.return_value = self.response_for_discussions
-            mock_response_2 = mock.Mock()
-            mock_response_2.json.return_value = self.response_for_comment
-
-            self.assertTrue(mock_response_1.assert_not_called)
-            self.assertTrue(mock_response_2.assert_not_called)
 
             # Here we are patching the POST requests using side_effect. So, when you put
             # callables inside `side_effect`, it will iterate through the items and
@@ -258,9 +258,9 @@ class ModuleIntegrationTest(unittest.TestCase):
                 self.assertEqual(mock_post.call_count, 0)
 
                 response_1 = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
                 request_2 = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
                 file_data = mock.mock_open(read_data=self.test_template)
                 with mock.patch('builtins.open', file_data):
                     main.main([

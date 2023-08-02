@@ -32,7 +32,7 @@ GITHUB_GRAPHQL_URL = 'https://api.github.com/graphql'
 PULL_REQUESTS_URL_TEMPLATE = 'https://api.github.com/repos/{0}/{1}/pulls'
 ISSUE_TIMELINE_URL_TEMPLATE = (
     'https://api.github.com/repos/{0}/{1}/issues/{2}/timeline')
-TIMEOUT = 15
+TIMEOUT_SECS = 15
 
 
 def init_service(token: Optional[str]=None) -> None:
@@ -114,7 +114,7 @@ def get_prs_assigned_to_reviewers(
             pr_url,
             params=params,
             headers=_get_request_headers(),
-            timeout=TIMEOUT
+            timeout=TIMEOUT_SECS
         )
         response.raise_for_status()
         pr_subset = response.json()
@@ -166,7 +166,7 @@ def get_pull_request_object_from_dict(
             headers={
                 'Accept': 'application/vnd.github+json',
                 'Authorization': f'token {_TOKEN}'},
-            timeout=TIMEOUT
+            timeout=TIMEOUT_SECS
         )
         response.raise_for_status()
         timeline_subset = response.json()
@@ -246,7 +246,7 @@ def create_discussion_comment(
         GITHUB_GRAPHQL_URL,
         json={'query': query, 'variables': variables},
         headers=_get_request_headers(),
-        timeout=TIMEOUT
+        timeout=TIMEOUT_SECS
     )
     data = response.json()
 
@@ -294,6 +294,6 @@ def create_discussion_comment(
         GITHUB_GRAPHQL_URL,
         json={'query': query, 'variables': variables},
         headers=_get_request_headers(),
-        timeout=TIMEOUT
+        timeout=TIMEOUT_SECS
     )
     response.raise_for_status()

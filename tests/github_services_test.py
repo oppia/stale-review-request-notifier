@@ -245,7 +245,7 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertEqual(mock_request.call_count, 2)
         self.assertIsInstance(response, github_domain.PullRequest)
         self.assertEqual(response.url, expected_response_dict['html_url'])
-        self.assertEqual(response.number, expected_response_dict['number'])
+        self.assertEqual(response.pr_number, expected_response_dict['number'])
         self.assertEqual(response.title, expected_response_dict['title'])
         self.assertEqual(response.author_username, expected_response_dict['user']['login'])
 
@@ -292,9 +292,9 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
             with mock.patch('requests.post', side_effect=[
                 mock_response_1, mock_response_2, mock_response_1, mock_response_2]) as mock_post:
                 response_1 = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
                 response_2 = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
 
                 github_services.create_discussion_comment(
                     self.org_name,
