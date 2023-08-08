@@ -80,7 +80,7 @@ class ModuleIntegrationTest(unittest.TestCase):
         self.discussion_category = 'category'
         self.discussion_title = 'title'
         # Here we use type Any because this response is hard to annotate in a typedDict.
-        self.response_for_discussions: Dict[str, Any] = {
+        self.response_for_get_discussion_data: Dict[str, Any] = {
             'data': {
                 'repository': {
                     'discussionCategories': {
@@ -94,7 +94,8 @@ class ModuleIntegrationTest(unittest.TestCase):
                                             {
                                                 'node': {
                                                 'id': 'test_discussion_id_1',
-                                                'title': 'test_discussion_title_1'
+                                                'title': 'test_discussion_title_1',
+                                                'number': 1
                                                 }
                                             }
                                         ]
@@ -110,7 +111,8 @@ class ModuleIntegrationTest(unittest.TestCase):
                                             {
                                                 'node': {
                                                 'id': 'test_discussion_id_2',
-                                                'title': 'test_discussion_title_2'
+                                                'title': 'test_discussion_title_2',
+                                                'number': 2
                                                 }
                                             }
                                         ]
@@ -122,8 +124,31 @@ class ModuleIntegrationTest(unittest.TestCase):
                 }
             }
         }
+        self.response_for_get_old_comment_ids = {
+            'data': {
+                'repository': {
+                    'discussion': {
+                        'comments': {
+                            'nodes': [
+                                {
+                                    'id': 'test_comment_id_2',
+                                    'createdAt': '2022-05-05T11:44:00Z'
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        }
+        self.response_for_delete_comment = {
+            "data": {
+                "deleteDiscussionComment": {
+                    "clientMutationId": "test_id"
+                }
+            }
+        }
         # Here we use type Any because this response is hard to annotate in a typedDict.
-        self.response_for_comment: Dict[str, Any] = {
+        self.response_for_post_comment: Dict[str, Any] = {
             'data': {
                 'addDiscussionComment': {
                     'clientMutationId': 'test_id',
@@ -224,43 +249,45 @@ class ModuleIntegrationTest(unittest.TestCase):
                 self.org_name, self.repo_name, 234) + param_page_2,
             text=json.dumps([]))
 
+    def mock_post_requests(self, response: Dict[str, Any]) -> mock.Mock:
+        """Mock post requests."""
+
+        mocked_response = mock.Mock()
+        mocked_response.json.return_value = response
+        return mocked_response
+
     def test_executing_main_function_sends_notification(self) -> None:
         """Test main function to send notification."""
 
-        # Here we are mocking the two POST requests that we will use in the test below.
-        # One request fetches all existing GitHub Discussions data, and the next
-        # request posts a comment in the particular GitHub Discussion.
-        mock_response_1 = mock.Mock()
-        mock_response_1.json.return_value = self.response_for_discussions
-        mock_response_2 = mock.Mock()
-        mock_response_2.json.return_value = self.response_for_comment
-
-        self.assertTrue(mock_response_1.assert_not_called)
-        self.assertTrue(mock_response_2.assert_not_called)
+        # Here we are mocking the POST requests that we will use in the test below.
+        # and they are listed in the particular order they will be called.
+        post_requests_side_effect: List[mock.Mock] = [
+            self.mock_post_requests(self.response_for_get_discussion_data),
+            self.mock_post_requests(self.response_for_get_old_comment_ids),
+            self.mock_post_requests(self.response_for_delete_comment),
+            self.mock_post_requests(self.response_for_get_discussion_data),
+            self.mock_post_requests(self.response_for_post_comment),
+            self.mock_post_requests(self.response_for_get_discussion_data),
+            self.mock_post_requests(self.response_for_post_comment)
+        ]
 
         with requests_mock.Mocker() as mock_request:
 
             self.mock_all_get_requests(mock_request)
 
-            # Here we are patching the POST requests using side_effect. So, when you put
+            # Here we are patching the POST requests using side_effect. So, when we put
             # callables inside `side_effect`, it will iterate through the items and
-            # return each at a time. For our test, we are expecting total 6 POST requests,
-            # three for each (fetching discussions and posting comment) alternatively. To
-            # understand the request count clearly, for our test data, we are calling
-            # them twice each so four times and two times here below to assert the
-            # response.
+            # return each at a time. For our test, we are expecting total 12 POST requests.
+            # 7 requests from the `main` function call and 5 requests from the below calls
+            # to assert the response.
             with mock.patch(
-                'requests.post', side_effect=[
-                    mock_response_1 if i % 2 == 0 else mock_response_2 for i in range(6)
-                ]) as mock_post:
+                'requests.post', side_effect=(
+                    post_requests_side_effect + post_requests_side_effect
+            )) as mock_post:
 
                 self.assertEqual(mock_request.call_count, 0)
                 self.assertEqual(mock_post.call_count, 0)
 
-                response_1 = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
-                request_2 = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
                 file_data = mock.mock_open(read_data=self.test_template)
                 with mock.patch('builtins.open', file_data):
                     main.main([
@@ -270,13 +297,31 @@ class ModuleIntegrationTest(unittest.TestCase):
                         '--max-wait-hours', '20',
                         '--token', 'githubTokenForApiRequest'
                     ])
-        self.assertTrue(mock_response_1.assert_called)
-        self.assertTrue(mock_response_2.assert_called)
-        self.assertEqual(mock_post.call_count, 6)
+
+                response_for_get_discussion_data = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                response_for_get_old_comment_ids = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                response_for_delete_comment = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                response_for_get_discussion_data = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                response_for_post_comment = requests.post(
+                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+
+        self.assertEqual(mock_post.call_count, 12)
         self.assertEqual(mock_request.call_count, 6)
 
         # Here we use MyPy ignore because response_1 and response_2 are of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
-        self.assertEqual(response_1.json.return_value, self.response_for_discussions)  # type: ignore[attr-defined]
-        self.assertEqual(request_2.json.return_value, self.response_for_comment)  # type: ignore[attr-defined]
+        self.assertEqual(
+            response_for_get_discussion_data.json.return_value, self.response_for_get_discussion_data)  # type: ignore[attr-defined]
+        self.assertEqual(
+            response_for_get_old_comment_ids.json.return_value, self.response_for_get_old_comment_ids)  # type: ignore[attr-defined]
+        self.assertEqual(
+            response_for_delete_comment.json.return_value, self.response_for_delete_comment)  # type: ignore[attr-defined]
+        self.assertEqual(
+            response_for_get_discussion_data.json.return_value, self.response_for_get_discussion_data)  # type: ignore[attr-defined]
+        self.assertEqual(
+            response_for_post_comment.json.return_value, self.response_for_post_comment)  # type: ignore[attr-defined]

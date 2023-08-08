@@ -112,7 +112,7 @@ def send_notification(
 
     message = generate_message(username, '\n'.join(pr_list_messages), TEMPLATE_PATH)
 
-    github_services.create_discussion_comment(
+    github_services.add_discussion_comments(
         org_name, repo_name, discussion_category, discussion_title, message)
 
 
@@ -146,6 +146,10 @@ def main(args: Optional[List[str]]=None) -> None:
 
     reviewer_to_assigned_prs = github_services.get_prs_assigned_to_reviewers(
         org_name, repo_name, max_wait_hours)
+
+    github_services.delete_discussion_comments(
+        org_name, repo_name, discussion_category, discussion_title)
+
     for reviewer_name, prs in reviewer_to_assigned_prs.items():
         send_notification(
             reviewer_name, prs, org_name, repo_name, discussion_category, discussion_title)
