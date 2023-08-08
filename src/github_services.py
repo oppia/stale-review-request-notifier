@@ -193,12 +193,14 @@ def get_pull_request_dict_with_timestamp(
     event: Dict[str, Any]
 ) -> Dict[str, Any]:
     """Adds the timestamp in dictionary as a key value pair where the key is `created_at`
-    and the value is datetime when the reviewer was assigned."""
+    and the value is datetime when the reviewer was assigned.
+    """
 
     for assignee in pr_dict['assignees']:
         if event['assignee']['login'] == assignee['login']:
             assignee['created_at'] = parser.parse(event['created_at'])
     return pr_dict
+
 
 @check_token
 def _get_discussion_data(
@@ -207,6 +209,9 @@ def _get_discussion_data(
     discussion_category: str,
     discussion_title: str,
 ) -> Tuple[str, int]:
+    """Fetch discussion data from api and return corresponding discussion id and
+    discussion number.
+    """
 
     # The following query is written in GraphQL and is being used to fetch data about the
     # existing GitHub discussions. This helps to find out the discussion where we want
@@ -279,6 +284,7 @@ def _get_past_time(days: int=60) -> str:
             datetime.timezone.utc) - datetime.timedelta(days=days)).strftime(
             '%Y-%m-%dT%H:%M:%SZ')
 
+
 def _get_old_comment_ids(
     org_name: str,
     repo_name: str,
@@ -337,6 +343,7 @@ def _get_old_comment_ids(
             break
 
     return comment_ids
+
 
 def _delete_comment(comment_id: str) -> None:
     """Delete the GitHub Discussion comment related to the comment id."""

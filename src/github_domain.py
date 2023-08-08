@@ -29,7 +29,8 @@ class Assignee:
         username: str,
         assigned_on_timestamp: datetime.datetime
     ) -> None:
-        """
+        """Constructs the Assignee object.
+
         Args:
             username: str. GitHub username of the assignee.
             assigned_on_timestamp: datetime. The time when the reviewer was
