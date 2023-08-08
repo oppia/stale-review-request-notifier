@@ -125,9 +125,9 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
             }
         }
         self.response_for_delete_comment = {
-            "data": {
-                "deleteDiscussionComment": {
-                    "clientMutationId": "test_id"
+            'data': {
+                'deleteDiscussionComment': {
+                    'clientMutationId': 'test_id'
                 }
             }
         }
@@ -248,14 +248,22 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
                 'login': 'reviewerName2',
             }]
         }
+        # Here we use type Any because this response is hard to annotate in a typedDict.
         expected_response_dict: Dict[str, Any] = {
             'html_url': 'https://githuburl.pull/123',
             'number': 123, 'title': 'PR title 1',
             'user': {'login': 'authorName'},
             'assignees': [
-                {'login': 'reviewerName1',
-                'created_at': datetime.datetime(2023, 7, 31, 22, 24, 38, tzinfo=tzutc())},
-                {'login': 'reviewerName2', 'created_at': datetime.datetime(2023, 7, 30, 12, 24, 38, tzinfo=tzutc())}
+                {
+                    'login': 'reviewerName1',
+                    'created_at': datetime.datetime(
+                        2023, 7, 31, 22, 24, 38, tzinfo=tzutc())
+                },
+                {
+                    'login': 'reviewerName2',
+                    'created_at': datetime.datetime(
+                        2023, 7, 30, 12, 24, 38, tzinfo=tzutc())
+                }
             ]
         }
 
@@ -270,7 +278,8 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertEqual(response.url, expected_response_dict['html_url'])
         self.assertEqual(response.pr_number, expected_response_dict['number'])
         self.assertEqual(response.title, expected_response_dict['title'])
-        self.assertEqual(response.author_username, expected_response_dict['user']['login'])
+        self.assertEqual(
+            response.author_username, expected_response_dict['user']['login'])
 
     def test_get_prs_assigned_to_reviewers(self) -> None:
         token = 'my_github_token'

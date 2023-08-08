@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import argparse
+import builtins
 import logging
 import os
 import re
@@ -73,7 +74,7 @@ def generate_message(username: str, pr_list: str, template_path: str=TEMPLATE_PA
         Exception. Template file is missing in the given path.
     """
     if not os.path.exists(template_path):
-        raise Exception(f'Please add a template file at: {template_path}')
+        raise builtins.BaseException(f'Please add a template file at: {template_path}')
     message = ''
     with open(template_path, 'r', encoding='UTF-8') as file:
         message = file.read()
@@ -136,7 +137,7 @@ def main(args: Optional[List[str]]=None) -> None:
     required_args = ['max_wait_hours', 'discussion_category', 'discussion_title']
     for arg in required_args:
         if arg is None:
-            raise Exception(f'Please provide {arg} argument.')
+            raise builtins.BaseException(f'Please provide {arg} argument.')
 
     if parsed_args.verbose:
         logging.basicConfig(

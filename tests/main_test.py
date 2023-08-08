@@ -141,9 +141,9 @@ class ModuleIntegrationTest(unittest.TestCase):
             }
         }
         self.response_for_delete_comment = {
-            "data": {
-                "deleteDiscussionComment": {
-                    "clientMutationId": "test_id"
+            'data': {
+                'deleteDiscussionComment': {
+                    'clientMutationId': 'test_id'
                 }
             }
         }
@@ -249,6 +249,7 @@ class ModuleIntegrationTest(unittest.TestCase):
                 self.org_name, self.repo_name, 234) + param_page_2,
             text=json.dumps([]))
 
+    # Here we use type Any because this response is hard to annotate in a typedDict.
     def mock_post_requests(self, response: Dict[str, Any]) -> mock.Mock:
         """Mock post requests."""
 
@@ -299,29 +300,46 @@ class ModuleIntegrationTest(unittest.TestCase):
                     ])
 
                 response_for_get_discussion_data = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=(
+                        github_services.TIMEOUT_SECS))
                 response_for_get_old_comment_ids = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=(
+                        github_services.TIMEOUT_SECS))
                 response_for_delete_comment = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=(
+                        github_services.TIMEOUT_SECS))
                 response_for_get_discussion_data = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=(
+                        github_services.TIMEOUT_SECS))
                 response_for_post_comment = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=github_services.TIMEOUT_SECS)
+                    github_services.GITHUB_GRAPHQL_URL, timeout=(
+                        github_services.TIMEOUT_SECS))
 
         self.assertEqual(mock_post.call_count, 12)
         self.assertEqual(mock_request.call_count, 6)
 
-        # Here we use MyPy ignore because response_1 and response_2 are of Mock type and
+        # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
             response_for_get_discussion_data.json.return_value, self.response_for_get_discussion_data)  # type: ignore[attr-defined]
+        # Here we use MyPy ignore because the response is of Mock type and
+        # Mock does not contain return_value attribute, so because of this MyPy throws an
+        # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
             response_for_get_old_comment_ids.json.return_value, self.response_for_get_old_comment_ids)  # type: ignore[attr-defined]
+        # Here we use MyPy ignore because the response is of Mock type and
+        # Mock does not contain return_value attribute, so because of this MyPy throws an
+        # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
             response_for_delete_comment.json.return_value, self.response_for_delete_comment)  # type: ignore[attr-defined]
+        # Here we use MyPy ignore because the response is of Mock type and
+        # Mock does not contain return_value attribute, so because of this MyPy throws an
+        # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
             response_for_get_discussion_data.json.return_value, self.response_for_get_discussion_data)  # type: ignore[attr-defined]
+        # Here we use MyPy ignore because the response is of Mock type and
+        # Mock does not contain return_value attribute, so because of this MyPy throws an
+        # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
             response_for_post_comment.json.return_value, self.response_for_post_comment)  # type: ignore[attr-defined]

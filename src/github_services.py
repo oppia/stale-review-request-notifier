@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import builtins
 import collections
 import datetime
 import logging
@@ -46,7 +47,8 @@ def init_service(token: Optional[str]=None) -> None:
         Exception. Given GitHub token is not valid.
     """
     if token is None or token == '':
-        raise Exception('Must provide a valid GitHub Personal Access Token.')
+        raise builtins.BaseException(
+            'Must provide a valid GitHub Personal Access Token.')
 
     global _TOKEN # pylint: disable=global-statement
     _TOKEN = token
@@ -64,7 +66,7 @@ def check_token(func: Callable[..., Any]) -> Callable[..., Any]:
     def execute_if_token_initialized(*args: Any, **kwargs: Any) -> Any:
         """Executes the given function if the token is initialized."""
         if _TOKEN is None:
-            raise Exception(
+            raise builtins.BaseException(
                 'Initialize the service with github_services.init_service(TOKEN).')
         return func(*args, **kwargs)
 
@@ -266,13 +268,14 @@ def _get_discussion_data(
                     discussion_number = discussion['node']['number']
                     break
             if discussion_id is None:
-                raise Exception(
-                    f'Discussion with title {discussion_title} not found, please create a '
-                    'discussion with that title.')
+                raise builtins.BaseException(
+                    f'Discussion with title {discussion_title} not found, please create '
+                    'a discussion with that title.')
             break
 
     if discussion_id is None:
-        raise Exception(f'{discussion_category} category is missing in GitHub Discussion.')
+        raise builtins.BaseException(
+            f'{discussion_category} category is missing in GitHub Discussion.')
 
     return discussion_id, discussion_number
 
