@@ -1,0 +1,30 @@
+name: Send pending review notifications to reviewer on GitHub Discussions
+description: 'Send pending review notifications on github-discussion.'
+inputs:
+  category-name:
+    description: 'The category name the discussion belongs to.'
+    required: true
+  discussion-title:
+    description: 'The title of the discussion in which comments will be posted.'  
+    required: true
+  repo-token:
+    description: 'The github-token to be used for creating github discussions.'
+    required: true
+  review-turnaround-hours:
+    description: 'The maximum review turnaround hours.'
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install dependencies
+      run: pip install -r ${{ github.action_path }}/requirements.txt
+      shell: bash
+    - name: Add path to environment
+      run: echo "PYTHONPATH=${{ github.action_path }}" >> $GITHUB_PATH; echo $GITHUB_PATH
+      shell: bash
+    - name: Send notification
+      run: |
+        cd ${{ github.action_path }}
+        python3 -m src.main --repo=${{ github.repository }} --category=${{ inputs.category-name }} --title=${{ inputs.discussion-title }} --token=${{ inputs.repo-token }} --max-wait-hours=${{ inputs.review-turnaround-hours}} --verbose
+      shell: bash
