@@ -215,9 +215,9 @@ def _get_discussion_data(
     discussion number.
     """
 
-    # The following query is written in GraphQL and is being used to fetch data about the
-    # existing GitHub discussions. This helps to find out the discussion where we want
-    # to comment. To learn more, check this out https://docs.github.com/en/graphql.
+    # The following query is written in GraphQL and is being used to fetch the category
+    # ids and titles from the GitHub discussions. To learn more, check this out
+    # https://docs.github.com/en/graphql.
     query = """
         query ($org_name: String!, $repository: String!) {
             repository(owner: $org_name, name: $repository) {
@@ -225,18 +225,6 @@ def _get_discussion_data(
                     nodes {
                         id
                         name
-                        repository {
-                            id
-                            discussions(last: 10) {
-                                edges {
-                                    node {
-                                        id
-                                        title
-                                        number
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
@@ -255,27 +243,66 @@ def _get_discussion_data(
         timeout=TIMEOUT_SECS
     )
     data = response.json()
-    discussion_id = None
+
+    category_id = None
     discussion_categories = (
         data['data']['repository']['discussionCategories']['nodes'])
 
     for category in discussion_categories:
         if category['name'] == discussion_category:
-            discussions = category['repository']['discussions']['edges']
-            for discussion in discussions:
-                if discussion['node']['title'] == discussion_title:
-                    discussion_id = discussion['node']['id']
-                    discussion_number = discussion['node']['number']
-                    break
-            if discussion_id is None:
-                raise builtins.BaseException(
-                    f'Discussion with title {discussion_title} not found, please create '
-                    'a discussion with that title.')
+            category_id = category['id']
+            break
+
+    if category_id is None:
+        raise builtins.BaseException(
+            f'{discussion_category} category is missing in GitHub Discussion.')
+
+    # The following query is written in GraphQL and is being used to fetch discussions
+    # from a particular GitHub discussion category. This helps to find out the discussion
+    # where we want to comment. To learn more, check this out
+    # https://docs.github.com/en/graphql.
+
+    query = """
+        query ($org_name: String!, $repository: String!, $category_id: ID!) {
+            repository(owner: $org_name, name: $repository) {
+                discussions(categoryId: $category_id, last:10) {
+                    nodes {
+                        id
+                        title
+                        number
+                    }
+                }
+            }
+        }
+    """
+
+    variables = {
+        'org_name': org_name,
+        'repository': repo_name,
+        'category_id': category_id
+    }
+
+    response = requests.post(
+        GITHUB_GRAPHQL_URL,
+        json={'query': query, 'variables': variables},
+        headers=_get_request_headers(),
+        timeout=TIMEOUT_SECS
+    )
+    data = response.json()
+    discussion_id = None
+
+    discussions = data['data']['repository']['discussions']['nodes']
+
+    for discussion in discussions:
+        if discussion['title'] == discussion_title:
+            discussion_id = discussion['id']
+            discussion_number = discussion['number']
             break
 
     if discussion_id is None:
         raise builtins.BaseException(
-            f'{discussion_category} category is missing in GitHub Discussion.')
+            f'Discussion with title {discussion_title} not found, please create a '
+            'discussion with that title.')
 
     return discussion_id, discussion_number
 
