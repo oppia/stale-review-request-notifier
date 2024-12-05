@@ -23,6 +23,7 @@ import unittest
 from unittest import mock
 
 from src import github_services
+from src import github_domain
 from src import main
 
 import requests
@@ -42,13 +43,16 @@ class GenerateMessageTests(unittest.TestCase):
         file_data = mock.mock_open(read_data=self.test_template)
         template_path = '.github/PENDING_REVIEW_NOTIFICATION_TEMPLATE.md'
         with mock.patch('builtins.open', file_data):
-            pr_list = (
-                '- [#123](https://githuburl.pull/123) [Waiting for the last 2 days, 8'
-                ' hours]')
-            response = main.generate_message('reviewerName1', pr_list, template_path)
-        expected_response = (
-            '@reviewerName1\n- [#123](https://githuburl.pull/123) [Waiting for the last 2'
-            ' days, 8 hours]')
+            pull_requests = github_domain.PullRequest(
+                'https://githuburl.pull/123',
+                123,
+                'user-1',
+                'test-title',
+                [github_domain.Assignee('user-2', datetime.datetime.now())]
+            )
+            response = main.generate_message('reviewerName1', [pull_requests], template_path)
+        expected_response = '@reviewerName1\n'
+
         self.assertEqual(expected_response, response)
 
     def test_generate_message_raises_template_not_found_error(self) -> None:
@@ -57,12 +61,12 @@ class GenerateMessageTests(unittest.TestCase):
         file_data = mock.mock_open(read_data=self.test_template)
         template_path = 'invalid_path'
         with mock.patch('builtins.open', file_data):
-            pr_list = (
-                '- [#123](https://githuburl.pull/123) [Waiting for the last 2 days, 8 '
-                'hours]')
+            pull_requests = github_domain.PullRequest(
+                'https://githuburl.pull/123',123, 'user-1', 'test-title', [github_domain.Assignee('user-2', (datetime.datetime.now()))]
+            )
             with self.assertRaisesRegex(
                 builtins.BaseException, f'Please add a template file at: {template_path}'):
-                main.generate_message('reviewerName1', pr_list, template_path)
+                main.generate_message('reviewerName1', [pull_requests], template_path)
 
 
 class ModuleIntegrationTest(unittest.TestCase):
@@ -80,69 +84,58 @@ class ModuleIntegrationTest(unittest.TestCase):
         self.repo_name = 'repo'
         self.discussion_category = 'category'
         self.discussion_title = 'title'
-        self.response_for_get_categories = {
-            "data": {
-                "repository": {
-                    "discussionCategories": {
-                        "nodes": [
+        self.discussion_body = 'body'
+        self.response_for_get_repository_id = {
+            'data': {
+                'repository': {
+                    'id': 'test_repository_id'
+                }
+            }
+        }
+        self.response_for_get_category_ids = {
+            'data': {
+                'repository': {
+                    'discussionCategories': {
+                        'nodes': [
                             {
-                                "id": "test_category_id_1",
-                                "name": "test_category_name_1"
-                            },
-                            {
-                                "id": "test_category_id_2",
-                                "name": "test_category_name_2"
+                                'id': 'test_category_id_1',
+                                'name': 'test_category_name_1'
                             }
                         ]
                     }
                 }
             }
         }
-        self.response_for_get_discussion = {
+        self.response_for_get_discussion_ids = {
             'data': {
                 'repository': {
                     'discussions': {
                         'nodes': [
                             {
                                 'id': 'test_discussion_id_1',
-                                'title': 'test_discussion_title_1',
-                                'number': 12345
+                                'title': 'Pending Reviews: User-1',
+                                'number': 65
                             }
                         ]
                     }
                 }
             }
         }
-        self.response_for_get_old_comment_ids = {
+        self.response_for_delete_discussion = {
             'data': {
-                'repository': {
+                'deleteDiscussion': {
+                    'clientMutationId': 'null',
                     'discussion': {
-                        'comments': {
-                            'nodes': [
-                                {
-                                    'id': 'test_comment_id_2',
-                                    'createdAt': '2022-05-05T11:44:00Z'
-                                }
-                            ]
-                        }
+                        'title': 'Pending Reviews: User-1'
                     }
                 }
             }
         }
-        self.response_for_delete_comment = {
+        self.response_for_create_discussion = {
             'data': {
-                'deleteDiscussionComment': {
-                    'clientMutationId': 'test_id'
-                }
-            }
-        }
-        # Here we use type Any because this response is hard to annotate in a typedDict.
-        self.response_for_post_comment: Dict[str, Any] = {
-            'data': {
-                'addDiscussionComment': {
-                    'clientMutationId': 'test_id',
-                    'comment': {
-                        'id': 'test_discussion_id_1'
+                'createDiscussion': {
+                    'discussion': {
+                        'id': 'D_kwDOJclmXc4AdCMs'
                     }
                 }
             }
@@ -246,22 +239,30 @@ class ModuleIntegrationTest(unittest.TestCase):
         mocked_response.json.return_value = response
         return mocked_response
 
-    def test_executing_main_function_sends_notification(self) -> None:
+    def test_main_function(self) -> None:
         """Test main function to send notification."""
 
         # Here we are mocking the POST requests that we will use in the test below.
         # and they are listed in the particular order they will be called.
-        post_requests_side_effect: List[mock.Mock] = [
-            self.mock_post_requests(self.response_for_get_categories),
-            self.mock_post_requests(self.response_for_get_discussion),
-            self.mock_post_requests(self.response_for_get_old_comment_ids),
-            self.mock_post_requests(self.response_for_delete_comment),
-            self.mock_post_requests(self.response_for_get_categories),
-            self.mock_post_requests(self.response_for_get_discussion),
-            self.mock_post_requests(self.response_for_post_comment),
-            self.mock_post_requests(self.response_for_get_categories),
-            self.mock_post_requests(self.response_for_get_discussion),
-            self.mock_post_requests(self.response_for_post_comment)
+        post_requests_side_effect_1: List[mock.Mock] = [
+            self.mock_post_requests(self.response_for_get_category_ids),
+            self.mock_post_requests(self.response_for_get_discussion_ids),
+            self.mock_post_requests(self.response_for_delete_discussion),
+            self.mock_post_requests(self.response_for_get_category_ids),
+            self.mock_post_requests(self.response_for_get_repository_id),
+            self.mock_post_requests(self.response_for_create_discussion),
+        ]
+
+        post_requests_side_effect_2: List[mock.Mock] = [
+            self.mock_post_requests(self.response_for_get_category_ids),
+            self.mock_post_requests(self.response_for_get_repository_id),
+            self.mock_post_requests(self.response_for_delete_discussion),
+            self.mock_post_requests(self.response_for_get_category_ids),
+            self.mock_post_requests(self.response_for_get_discussion_ids),
+            self.mock_post_requests(self.response_for_delete_discussion),
+            self.mock_post_requests(self.response_for_get_category_ids),
+            self.mock_post_requests(self.response_for_get_repository_id),
+            self.mock_post_requests(self.response_for_create_discussion),
         ]
 
         with requests_mock.Mocker() as mock_request:
@@ -275,8 +276,7 @@ class ModuleIntegrationTest(unittest.TestCase):
             # to assert the response.
             with mock.patch(
                 'requests.post', side_effect=(
-                    post_requests_side_effect + post_requests_side_effect
-            )) as mock_post:
+                    post_requests_side_effect_1 + post_requests_side_effect_2)) as mock_post:
 
                 self.assertEqual(mock_request.call_count, 0)
                 self.assertEqual(mock_post.call_count, 0)
@@ -286,68 +286,54 @@ class ModuleIntegrationTest(unittest.TestCase):
                     main.main([
                         '--repo', 'orgName/repo',
                         '--category', 'test_category_name_1',
-                        '--title', 'test_discussion_title_1',
+                        '--title', 'title',
                         '--max-wait-hours', '20',
                         '--token', 'githubTokenForApiRequest'
                     ])
 
-                response_for_get_categories = requests.post(
+                response_for_get_category_ids = requests.post(
                     github_services.GITHUB_GRAPHQL_URL, timeout=(
                         github_services.TIMEOUT_SECS))
-                response_for_get_discussion = requests.post(
+                response_for_get_discussion_ids = requests.post(
                     github_services.GITHUB_GRAPHQL_URL, timeout=(
                         github_services.TIMEOUT_SECS))
-                response_for_get_old_comment_ids = requests.post(
+                response_for_delete_discussion = requests.post(
                     github_services.GITHUB_GRAPHQL_URL, timeout=(
                         github_services.TIMEOUT_SECS))
-                response_for_delete_comment = requests.post(
+                response_for_get_category_ids = requests.post(
                     github_services.GITHUB_GRAPHQL_URL, timeout=(
                         github_services.TIMEOUT_SECS))
-                response_for_get_categories = requests.post(
+                response_for_get_repository_id = requests.post(
                     github_services.GITHUB_GRAPHQL_URL, timeout=(
                         github_services.TIMEOUT_SECS))
-                response_for_get_discussion = requests.post(
+                response_for_create_discussion = requests.post(
                     github_services.GITHUB_GRAPHQL_URL, timeout=(
                         github_services.TIMEOUT_SECS))
-                response_for_post_comment = requests.post(
-                    github_services.GITHUB_GRAPHQL_URL, timeout=(
-                        github_services.TIMEOUT_SECS))
-
-        self.assertEqual(mock_post.call_count, 17)
+        self.assertEqual(mock_post.call_count, 15)
         self.assertEqual(mock_request.call_count, 6)
 
         # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
-            response_for_get_categories.json.return_value, self.response_for_get_categories)  # type: ignore[attr-defined]
+            response_for_get_category_ids.json.return_value, self.response_for_get_category_ids)  # type: ignore[attr-defined]
         # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
-            response_for_get_discussion.json.return_value, self.response_for_get_discussion)  # type: ignore[attr-defined]
+            response_for_get_discussion_ids.json.return_value, self.response_for_get_discussion_ids)  # type: ignore[attr-defined]
         # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
-            response_for_get_old_comment_ids.json.return_value, self.response_for_get_old_comment_ids)  # type: ignore[attr-defined]
+            response_for_delete_discussion.json.return_value, self.response_for_delete_discussion)  # type: ignore[attr-defined]
         # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
-            response_for_delete_comment.json.return_value, self.response_for_delete_comment)  # type: ignore[attr-defined]
+            response_for_get_repository_id.json.return_value, self.response_for_get_repository_id)  # type: ignore[attr-defined]
         # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
-            response_for_get_categories.json.return_value, self.response_for_get_categories)  # type: ignore[attr-defined]
-        # Here we use MyPy ignore because the response is of Mock type and
-        # Mock does not contain return_value attribute, so because of this MyPy throws an
-        # error. Thus to avoid the error, we used ignore here.
-        self.assertEqual(
-            response_for_get_discussion.json.return_value, self.response_for_get_discussion)  # type: ignore[attr-defined]
-        # Here we use MyPy ignore because the response is of Mock type and
-        # Mock does not contain return_value attribute, so because of this MyPy throws an
-        # error. Thus to avoid the error, we used ignore here.
-        self.assertEqual(
-            response_for_post_comment.json.return_value, self.response_for_post_comment)  # type: ignore[attr-defined]
+            response_for_create_discussion.json.return_value, self.response_for_create_discussion)  # type: ignore[attr-defined]

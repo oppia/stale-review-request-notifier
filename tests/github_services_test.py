@@ -62,71 +62,63 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
     def setUp(self) -> None:
         self.org_name = 'orgName'
         self.repo_name = 'repo'
-        self.discussion_category = 'category'
-        self.discussion_title = 'title'
-        self.response_for_get_categories = {
-            "data": {
-                "repository": {
-                    "discussionCategories": {
-                        "nodes": [
+        self.discussion_category = 'test_category_name_1'
+        self.discussion_title = 'Pending Reviews: User-1'
+        self.discussion_body = 'body'
+        self.response_for_get_repository_id = {
+            'data': {
+                'repository': {
+                    'id': 'test_repository_id'
+                }
+            }
+        }
+        self.response_for_get_category_id = {
+            'data': {
+                'repository': {
+                    'discussionCategories': {
+                        'nodes': [
                             {
-                                "id": "test_category_id_1",
-                                "name": "test_category_name_1"
-                            },
-                            {
-                                "id": "test_category_id_2",
-                                "name": "test_category_name_2"
+                                'id': 'test_category_id_1',
+                                'name': 'test_category_name_1'
+                            },{
+                                'id': 'test_category_id_2',
+                                'name': 'test_category_name_2'
                             }
                         ]
                     }
                 }
             }
         }
-        self.response_for_get_discussion = {
+        self.response_for_get_discussion_ids = {
             'data': {
                 'repository': {
                     'discussions': {
                         'nodes': [
                             {
                                 'id': 'test_discussion_id_1',
-                                'title': 'test_discussion_title_1',
-                                'number': 12345
+                                'title': 'Pending Reviews: User-1',
+                                'number': 65
                             }
                         ]
                     }
                 }
             }
         }
-        self.response_for_get_old_comment_ids = {
+        self.response_for_delete_discussion = {
             'data': {
-                'repository': {
+                'deleteDiscussion': {
+                    'clientMutationId': 'null',
                     'discussion': {
-                        'comments': {
-                            'nodes': [
-                                {
-                                    'id': 'test_comment_id_2',
-                                    'createdAt': '2022-05-05T11:44:00Z'
-                                }
-                            ]
-                        }
+                        'title': 'Pending Reviews: User-1'
                     }
                 }
             }
         }
-        self.response_for_delete_comment = {
+        self.response_for_create_discussion = {
             'data': {
-                'deleteDiscussionComment': {
-                    'clientMutationId': 'test_id'
-                }
-            }
-        }
-        # Here we use type Any because this response is hard to annotate in a typedDict.
-        self.response_for_post_comment: Dict[str, Any] = {
-            'data': {
-                'addDiscussionComment': {
-                    'clientMutationId': 'test_id',
-                    'comment': {
-                        'id': 'test_discussion_id_1'
+                'createDiscussion': {
+                    'discussion': {
+                        'id': 'D_kwDOJclmXc4AdCMs'
                     }
                 }
             }
@@ -291,19 +283,16 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
 
         self.assertEqual(mock_request.call_count, 6)
 
-    def test_get_discussion_data(self) -> None:
-        """Test _get_discussion_data."""
 
-        mock_response_for_get_categories = self.mock_post_requests(
-            self.response_for_get_categories)
-        mock_response_for_get_discussion = self.mock_post_requests(
-            self.response_for_get_discussion)
+    def test_get_repository_id(self) -> None:
+        """Test _get_repository_id."""
 
-        self.assertTrue(mock_response_for_get_categories.assert_not_called)
-        self.assertTrue(mock_response_for_get_discussion.assert_not_called)
+        mock_response_for_get_repository_id = self.mock_post_requests(
+            self.response_for_get_repository_id)
+
+        self.assertTrue(mock_response_for_get_repository_id.assert_not_called)
         mock_response = [
-            mock_response_for_get_categories,
-            mock_response_for_get_discussion
+            mock_response_for_get_repository_id
         ]
 
         with requests_mock.Mocker() as mock_requests:
@@ -312,22 +301,19 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
 
             with mock.patch('requests.post', side_effect=mock_response) as mock_post:
 
-                mocked_response = github_services._get_discussion_data(
+                mocked_response = github_services._get_repository_id(
                     self.org_name,
-                    self.repo_name,
-                    'test_category_name_1',
-                    'test_discussion_title_1'
+                    self.repo_name
                 )
-        self.assertTrue(mock_response_for_get_categories.assert_called_once)
-        self.assertTrue(mock_response_for_get_discussion.assert_called_once)
-        self.assertEqual(mock_post.call_count, 2)
-        self.assertEqual(mocked_response, ('test_discussion_id_1', 12345))
+        self.assertTrue(mock_response_for_get_repository_id.assert_called_once)
+        self.assertEqual(mock_post.call_count, 1)
+        self.assertEqual(mocked_response, 'test_repository_id')
 
-    def test_get_old_comment_ids(self) -> None:
-        """Test _get_old_comment_ids."""
+    def test_get_category_id(self) -> None:
+        """Test _get_category_id."""
 
         mock_response = mock.Mock()
-        mock_response.json.return_value = self.response_for_get_old_comment_ids
+        mock_response.json.return_value = self.response_for_get_category_id
         self.assertTrue(mock_response.assert_not_called)
 
         with requests_mock.Mocker() as mock_requests:
@@ -336,112 +322,93 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
 
             with mock.patch('requests.post', side_effect=[mock_response]) as mock_post:
 
-                mocked_response = github_services._get_old_comment_ids(
+                mocked_response = github_services._get_category_id(
                     self.org_name,
                     self.repo_name,
-                    12345
+                    'test_category_name_1'
                 )
         self.assertTrue(mock_response.assert_called_once)
         self.assertEqual(mock_post.call_count, 1)
-        self.assertEqual(mocked_response, ['test_comment_id_2'])
+        self.assertEqual(mocked_response, 'test_category_id_1')
 
-    def test_delete_comment(self) -> None:
-        """Test delete_comment."""
-
-        token = 'my_github_token'
-        github_services.init_service(token)
-
-        mock_response = mock.Mock()
-        mock_response.json.return_value = self.response_for_delete_comment
-        self.assertTrue(mock_response.assert_not_called)
-
-        with requests_mock.Mocker() as mock_requests:
-
-            self.mock_all_get_requests(mock_requests)
-
-            with mock.patch('requests.post', side_effect=[mock_response]) as mock_post:
-
-                github_services._delete_comment('test_comment_id_2')
-        self.assertTrue(mock_response.assert_called)
-        self.assertEqual(mock_post.call_count, 1)
-
-    def test_post_comment(self) -> None:
-        """Test post comment."""
-
-        mock_response = mock.Mock()
-        mock_response.json.return_value = self.response_for_post_comment
-        self.assertTrue(mock_response.assert_not_called)
-
-        with requests_mock.Mocker() as mock_requests:
-
-            self.mock_all_get_requests(mock_requests)
-
-            with mock.patch('requests.post', side_effect=[mock_response]) as mock_post:
-
-                github_services._post_comment(
-                    'test_discussion_id_1',
-                    'test_message'
-                )
-        self.assertTrue(mock_response.assert_called_once)
-        self.assertEqual(mock_post.call_count, 1)
-
-    def test_delete_discussion_comments(self) -> None:
-        """Test delete_discussion_comments function."""
-
-        token = 'my_github_token'
-        github_services.init_service(token)
+    def test_get_discussion_ids(self) -> None:
+        """Test _get_discussion_ids."""
 
         mock_response_1 = mock.Mock()
-        mock_response_1.json.return_value = self.response_for_get_categories
-
+        mock_response_1.json.return_value = self.response_for_get_category_id
         mock_response_2 = mock.Mock()
-        mock_response_2.json.return_value = self.response_for_get_discussion
-
-        mock_response_3 = mock.Mock()
-        mock_response_3.json.return_value = self.response_for_get_old_comment_ids
-
-        mock_response_4 = mock.Mock()
-        mock_response_4.json.return_value = self.response_for_delete_comment
-
+        mock_response_2.json.return_value = self.response_for_get_discussion_ids
         self.assertTrue(mock_response_1.assert_not_called)
         self.assertTrue(mock_response_2.assert_not_called)
-        self.assertTrue(mock_response_3.assert_not_called)
-        self.assertTrue(mock_response_4.assert_not_called)
 
         with requests_mock.Mocker() as mock_requests:
 
             self.mock_all_get_requests(mock_requests)
 
             with mock.patch('requests.post', side_effect=[
-                mock_response_1, mock_response_2, mock_response_3, mock_response_4]) as mock_post:
+                mock_response_1, mock_response_2]) as mock_post:
 
-                github_services.delete_discussion_comments(
+                mocked_response = github_services._get_discussion_ids(
                     self.org_name,
                     self.repo_name,
-                    'test_category_name_1',
-                    'test_discussion_title_1'
+                    'test_category_name_1'
                 )
-        self.assertTrue(mock_response_1.assert_called)
-        self.assertTrue(mock_response_2.assert_called)
-        self.assertTrue(mock_response_3.assert_called)
-        self.assertTrue(mock_response_4.assert_called)
-        self.assertEqual(mock_post.call_count, 4)
+        self.assertTrue(mock_response_1.assert_called_once)
+        self.assertTrue(mock_response_2.assert_called_once)
+        self.assertEqual(mock_post.call_count, 2)
+        self.assertEqual(
+            mocked_response, [
+                'test_discussion_id_1'
+            ]
+        )
 
-    def test_add_discussion_comments(self) -> None:
-        """Test discussion comments."""
+    def test_delete_discussion(self) -> None:
+        """Test _delete_discussion."""
+
+        mock_response = mock.Mock()
+        mock_response.json.return_value = self.response_for_delete_discussion
+        self.assertTrue(mock_response.assert_not_called)
+
+        with requests_mock.Mocker() as mock_requests:
+
+            self.mock_all_get_requests(mock_requests)
+
+            with mock.patch('requests.post', side_effect=[mock_response]) as mock_post:
+
+                github_services._delete_discussion('test_discussion_id_1')
+        self.assertTrue(mock_response.assert_called_once)
+        self.assertEqual(mock_post.call_count, 1)
+
+    def test_delete_discussions(self) -> None:
+        """Test _delete_discussions."""
+
+        mock_response = mock.Mock()
+        mock_response.json.return_value = self.response_for_delete_discussion
+        self.assertTrue(mock_response.assert_not_called)
+        self.assertTrue(mock_response.assert_not_called)
+
+        with requests_mock.Mocker() as mock_requests:
+
+            self.mock_all_get_requests(mock_requests)
+
+            with mock.patch('requests.post', side_effect=[mock_response]) as mock_post:
+
+                github_services._delete_discussion('test_discussion_id_1')
+        self.assertTrue(mock_response.assert_called_once)
+        self.assertEqual(mock_post.call_count, 1)
+
+    def test_create_discussion(self) -> None:
+        """Test create discussion."""
 
         token = 'my_github_token'
         github_services.init_service(token)
 
         mock_response_1 = mock.Mock()
-        mock_response_1.json.return_value = self.response_for_get_categories
-
+        mock_response_1.json.return_value = self.response_for_get_category_id
         mock_response_2 = mock.Mock()
-        mock_response_2.json.return_value = self.response_for_get_discussion
-
+        mock_response_2.json.return_value = self.response_for_get_repository_id
         mock_response_3 = mock.Mock()
-        mock_response_3.json.return_value = self.response_for_post_comment
-
+        mock_response_3.json.return_value = self.response_for_create_discussion
         self.assertTrue(mock_response_1.assert_not_called)
         self.assertTrue(mock_response_2.assert_not_called)
         self.assertTrue(mock_response_3.assert_not_called)
@@ -453,12 +420,12 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
             with mock.patch('requests.post', side_effect=[
                 mock_response_1, mock_response_2, mock_response_3]) as mock_post:
 
-                github_services.add_discussion_comments(
+                github_services.create_discussion(
                     self.org_name,
                     self.repo_name,
-                    'test_category_name_1',
-                    'test_discussion_title_1',
-                    'test_message'
+                    self.discussion_category,
+                    self.discussion_title,
+                    self.discussion_body
                 )
         self.assertTrue(mock_response_1.assert_called)
         self.assertTrue(mock_response_2.assert_called)
