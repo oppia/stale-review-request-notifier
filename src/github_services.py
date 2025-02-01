@@ -199,6 +199,8 @@ def get_pull_request_dict_with_timestamp(
     """
 
     for assignee in pr_dict['assignees']:
+        if 'login' not in [event['assignee'], assignee]:
+            continue
         if event['assignee']['login'] == assignee['login']:
             assignee['created_at'] = parser.parse(event['created_at'])
     return pr_dict
