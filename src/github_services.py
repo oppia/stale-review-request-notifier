@@ -200,6 +200,8 @@ def get_pull_request_dict_with_timestamp(
 
     for assignee in pr_dict['assignees']:
         if event['assignee'] is None or assignee is None:
+            # This situation can arise if a PR was reviewed by a now-deleted
+            # user.
             continue
         if event['assignee']['login'] == assignee['login']:
             assignee['created_at'] = parser.parse(event['created_at'])
