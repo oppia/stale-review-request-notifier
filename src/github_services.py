@@ -258,7 +258,7 @@ def _get_category_id(
     query = """
         query ($org_name: String!, $repository: String!) {
             repository(owner: $org_name, name: $repository) {
-                discussionCategories(first: 10) {
+                discussionCategories(first: 20) {
                     nodes {
                         id
                         name
