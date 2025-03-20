@@ -235,6 +235,10 @@ def _get_repository_id(
     )
     data = response.json()
 
+    print('--- GraphQL response ---')
+    print('Repository id')
+    print(data)
+
     repository_id: str = (
         data['data']['repository']['id'])
 
@@ -258,7 +262,7 @@ def _get_category_id(
     query = """
         query ($org_name: String!, $repository: String!) {
             repository(owner: $org_name, name: $repository) {
-                discussionCategories(first: 10) {
+                discussionCategories(first: 50) {
                     nodes {
                         id
                         name
@@ -280,6 +284,9 @@ def _get_category_id(
         timeout=TIMEOUT_SECS
     )
     data = response.json()
+    print('--- GraphQL response ---')
+    print('Discussion category names and ids')
+    print(data)
 
     category_id: Optional[str] = None
     discussion_categories = (
@@ -341,6 +348,9 @@ def _get_discussion_ids(
         timeout=TIMEOUT_SECS
     )
     data = response.json()
+    print('--- GraphQL response ---')
+    print('Discussion ids, titles, numbers')
+    print(data)
 
     discussions = data['data']['repository']['discussions']['nodes']
     discussion_ids = [
@@ -377,6 +387,9 @@ def _delete_discussion(discussion_id: str) -> None:
         headers=_get_request_headers(),
         timeout=TIMEOUT_SECS
     )
+    print('--- GraphQL response ---')
+    print('Delete discussion')
+    print(response)
     response.raise_for_status()
 
 
@@ -429,5 +442,8 @@ def create_discussion(
         headers=_get_request_headers(),
         timeout=TIMEOUT_SECS
     )
+    print('--- GraphQL response ---')
+    print('Create discussion')
+    print(response)
 
     response.raise_for_status()
