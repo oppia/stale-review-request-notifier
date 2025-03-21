@@ -324,7 +324,7 @@ def _get_discussion_ids(
     query = """
         query ($org_name: String!, $repository: String!, $category_id: ID!) {
             repository(owner: $org_name, name: $repository) {
-                discussions(categoryId: $category_id, last:10) {
+                discussions(categoryId: $category_id, last:100) {
                     nodes {
                         id
                         title
