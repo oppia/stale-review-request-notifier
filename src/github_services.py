@@ -404,6 +404,12 @@ def delete_discussions(
     discussion_ids = _get_discussion_ids(
         org_name, repo_name, discussion_category)
 
+    print()
+    print()
+    print('--- Discussions ids getting deleted ---')
+    print(discussion_ids)
+    print()
+    print()
     for discussion_id in discussion_ids:
         _delete_discussion(discussion_id)
 
