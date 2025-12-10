@@ -390,6 +390,7 @@ def _delete_discussion(discussion_id: str) -> None:
     print('--- GraphQL response ---')
     print('Delete discussion')
     print(response)
+    print(response.text)
     response.raise_for_status()
 
 
