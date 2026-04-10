@@ -113,8 +113,6 @@ class PullRequest:
     def __repr__(self) -> str:
         return f'PR #{self.pr_number} by {self.author_username}'
 
-    # Here we use type Any because the response we get from the api call
-    # is hard to annotate in a typedDict.
     @classmethod
     def from_github_response(
         cls: Type[PullRequest],
@@ -122,7 +120,21 @@ class PullRequest:
     ) -> PullRequest:
         """Create the object using the pull_request response."""
         assignees_dict = pr_dict['assignees']
-        assignees = [Assignee(a['login'], a['created_at']) for a in assignees_dict]
+
+        assignees = []
+        for a in assignees_dict:
+            created_at = a.get('created_at')
+
+            if created_at is not None:
+                # Convert ISO string to datetime
+                created_at = datetime.datetime.fromisoformat(
+                    created_at.replace('Z', '+00:00')
+                )
+            else:
+                # Fallback to current UTC time to avoid crash
+                created_at = datetime.datetime.now(datetime.timezone.utc)
+
+            assignees.append(Assignee(a['login'], created_at))
 
         pull_request = cls(
             url=pr_dict['html_url'],
