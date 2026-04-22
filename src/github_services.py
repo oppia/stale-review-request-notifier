@@ -160,6 +160,11 @@ def get_pull_request_object_from_dict(
     activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
         org_name, repo_name, pr_number)
 
+    updated_pr_dict = pr_dict
+    for assignee in updated_pr_dict.get('assignees', []):
+        if 'created_at' not in assignee and 'created_at' in pr_dict:
+            assignee['created_at'] = parser.parse(pr_dict['created_at'])
+
     page_number = 1
     while True:
         logging.info('Fetching PR #%s timeline', pr_number)
@@ -180,7 +185,8 @@ def get_pull_request_object_from_dict(
         for event in timeline_subset:
             if event['event'] != 'assigned':
                 continue
-            updated_pr_dict = get_pull_request_dict_with_timestamp(pr_dict, event)
+            updated_pr_dict = get_pull_request_dict_with_timestamp(
+                updated_pr_dict, event)
 
         page_number += 1
 

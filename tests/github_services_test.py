@@ -270,6 +270,42 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertEqual(
             response.author_username, expected_response_dict['user']['login'])
 
+    def test_get_pull_request_object_from_dict_without_assigned_event(self) -> None:
+        token = 'my_github_token'
+        github_services.init_service(token)
+        mocked_response = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123,
+            'title': 'PR title 1',
+            'created_at': '2023-07-31T22:24:38Z',
+            'user': {
+                'login': 'authorName',
+            },
+            'assignees': [{
+                'login': 'reviewerName1',
+            }, {
+                'login': 'reviewerName2',
+            }]
+        }
+
+        with requests_mock.Mocker() as mock_request:
+            param_page_1 = '?page=1&per_page=100'
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + param_page_1,
+                text=json.dumps([{'event': 'created'}]))
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=2&per_page=100',
+                text=json.dumps([]))
+
+            response = github_services.get_pull_request_object_from_dict(
+                self.org_name, self.repo_name, mocked_response
+            )
+
+        self.assertIsInstance(response, github_domain.PullRequest)
+        self.assertEqual(response.url, mocked_response['html_url'])
+
     def test_get_prs_assigned_to_reviewers(self) -> None:
         token = 'my_github_token'
         github_services.init_service(token)
