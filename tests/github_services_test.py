@@ -379,6 +379,10 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 3)
         self.assertEqual(mocked_response, ['id1', 'id2'])
 
+        # Verify pagination cursor in second page request.
+        _, kwargs2 = mock_post.call_args_list[2]
+        self.assertEqual(kwargs2['json']['variables']['cursor'], 'cursor1')
+
     def test_delete_discussion(self) -> None:
         """Test _delete_discussion."""
 
@@ -419,6 +423,11 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
                     self.org_name, self.repo_name, 'test_category_name_1'
                 )
         self.assertEqual(mock_post.call_count, 3)
+
+        # Verify batched deletion payload.
+        _, kwargs2 = mock_post.call_args_list[2]
+        self.assertIn('delete0: deleteDiscussion', kwargs2['json']['query'])
+        self.assertEqual(kwargs2['json']['variables']['id0'], 'test_discussion_id_1')
 
     def test_create_discussion(self) -> None:
         """Test create discussion."""
