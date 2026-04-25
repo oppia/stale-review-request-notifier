@@ -366,6 +366,9 @@ def _get_discussion_ids(
         if not page_info['hasNextPage']:
             break
         cursor = page_info['endCursor']
+        if cursor is None:
+            raise Exception(
+                'PageInfo says there is a next page, but endCursor is missing.')
 
     if not discussion_ids:
         logging.info('No existing discussions found')
