@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import builtins
 import collections
+import copy
 import datetime
 import logging
 
@@ -160,10 +161,12 @@ def get_pull_request_object_from_dict(
     activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
         org_name, repo_name, pr_number)
 
-    updated_pr_dict = pr_dict
-    for assignee in updated_pr_dict.get('assignees', []):
-        if 'created_at' not in assignee and 'created_at' in pr_dict:
-            assignee['created_at'] = parser.parse(pr_dict['created_at'])
+    updated_pr_dict = copy.deepcopy(pr_dict)
+    if 'created_at' in pr_dict:
+        pr_created = parser.parse(pr_dict['created_at'])
+
+        for assignee in updated_pr_dict.get('assignees', []):
+            assignee.setdefault('created_at', pr_created)
 
     page_number = 1
     while True:
