@@ -110,6 +110,10 @@ class ModuleIntegrationTest(unittest.TestCase):
             'data': {
                 'repository': {
                     'discussions': {
+                        'pageInfo': {
+                            'hasNextPage': False,
+                            'endCursor': None
+                        },
                         'nodes': [
                             {
                                 'id': 'test_discussion_id_1',
@@ -123,11 +127,8 @@ class ModuleIntegrationTest(unittest.TestCase):
         }
         self.response_for_delete_discussion = {
             'data': {
-                'deleteDiscussion': {
-                    'clientMutationId': 'null',
-                    'discussion': {
-                        'title': 'Pending Reviews: User-1'
-                    }
+                'delete0': {
+                    'clientMutationId': 'null'
                 }
             }
         }
