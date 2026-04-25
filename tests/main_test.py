@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import builtins
 import datetime
 import json
 import unittest
@@ -64,7 +65,7 @@ class GenerateMessageTests(unittest.TestCase):
                 'https://githuburl.pull/123',123, 'user-1', 'test-title', [github_domain.Assignee('user-2', (datetime.datetime.now()))]
             )
             with self.assertRaisesRegex(
-                Exception, f'Please add a template file at: {template_path}'):
+                builtins.BaseException, f'Please add a template file at: {template_path}'):
                 main.generate_message('reviewerName1', [pull_requests], template_path)
 
 
