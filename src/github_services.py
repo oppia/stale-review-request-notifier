@@ -34,6 +34,7 @@ ISSUE_TIMELINE_URL_TEMPLATE = (
     'https://api.github.com/repos/{0}/{1}/issues/{2}/timeline')
 TIMEOUT_SECS = 15
 DELETE_COMMENTS_BEFORE_IN_DAYS = 60
+DISCUSSION_DELETE_BATCH_SIZE = 10
 
 
 def init_service(token: Optional[str]=None) -> None:
@@ -428,9 +429,8 @@ def delete_discussions(
 
     # We batch the deletions to improve performance and avoid flaky timeouts.
     # We use a smaller batch size to avoid hitting the GraphQL complexity limit.
-    batch_size = 10
-    for i in range(0, len(discussion_ids), batch_size):
-        batch = discussion_ids[i:i + batch_size]
+    for i in range(0, len(discussion_ids), DISCUSSION_DELETE_BATCH_SIZE):
+        batch = discussion_ids[i:i + DISCUSSION_DELETE_BATCH_SIZE]
         _delete_discussions_batch(batch)
 
 
