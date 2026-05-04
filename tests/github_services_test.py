@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import builtins
 import datetime
 import json
 import unittest
@@ -40,12 +39,12 @@ class TestInitServices(unittest.TestCase):
 
     def test_init_service_without_token(self) -> None:
 
-        with self.assertRaises(builtins.BaseException):
+        with self.assertRaises(Exception):
             github_services.init_service()
 
     def test_init_service_with_empty_token(self) -> None:
 
-        with self.assertRaises(builtins.BaseException):
+        with self.assertRaises(Exception):
             github_services.init_service('')
 
 

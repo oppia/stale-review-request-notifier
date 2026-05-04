@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import builtins
 import collections
 import datetime
 import logging
@@ -48,7 +47,7 @@ def init_service(token: Optional[str]=None) -> None:
         Exception. Given GitHub token is not valid.
     """
     if token is None or token == '':
-        raise builtins.BaseException(
+        raise Exception(
             'Must provide a valid GitHub Personal Access Token.')
 
     global _TOKEN # pylint: disable=global-statement
@@ -67,7 +66,7 @@ def check_token(func: Callable[..., Any]) -> Callable[..., Any]:
     def execute_if_token_initialized(*args: Any, **kwargs: Any) -> Any:
         """Executes the given function if the token is initialized."""
         if _TOKEN is None:
-            raise builtins.BaseException(
+            raise Exception(
                 'Initialize the service with github_services.init_service(TOKEN).')
         return func(*args, **kwargs)
 
@@ -244,7 +243,7 @@ def _get_repository_id(
         data['data']['repository']['id'])
 
     if repository_id is None:
-        raise builtins.BaseException(
+        raise Exception(
             f'{org_name}/{repo_name} doesn\'t exist.')
 
     return repository_id
@@ -299,7 +298,7 @@ def _get_category_id(
             break
 
     if category_id is None:
-        raise builtins.BaseException(
+        raise Exception(
             f'{discussion_category} category is missing in GitHub Discussion.')
 
     assert category_id is not None
@@ -356,7 +355,7 @@ def _get_discussion_ids(
         data = response.json()
 
         if 'errors' in data:
-            raise builtins.BaseException(
+            raise Exception(
                 f'Error fetching discussions: {data["errors"]}')
 
         discussions_data = data['data']['repository']['discussions']
@@ -369,7 +368,7 @@ def _get_discussion_ids(
             break
         cursor = page_info['endCursor']
         if cursor is None:
-            raise builtins.BaseException(
+            raise Exception(
                 'PageInfo says there is a next page, but endCursor is missing.')
 
     if not discussion_ids:
@@ -402,7 +401,7 @@ def _delete_discussion(discussion_id: str) -> None:
     data = response.json()
 
     if 'errors' in data:
-        raise builtins.BaseException(
+        raise Exception(
             f'Error deleting discussion {discussion_id}: {data["errors"]}')
 
     print('--- GraphQL response ---')
@@ -447,9 +446,10 @@ def _delete_discussions_batch(discussion_ids: List[str]) -> None:
         )
         variables[f'id{i}'] = discussion_id
 
+    mutations_str = '\n            '.join(mutations)
     query = f"""
         mutation ({', '.join([f'$id{i}: ID!' for i in range(len(discussion_ids))])}) {{
-            {chr(10).join(mutations)}
+            {mutations_str}
         }}
     """
 
@@ -463,7 +463,7 @@ def _delete_discussions_batch(discussion_ids: List[str]) -> None:
     data = response.json()
 
     if 'errors' in data:
-        raise builtins.BaseException(
+        raise Exception(
             f'Error in batch deletion: {data["errors"]}')
 
     print('--- GraphQL response ---')
