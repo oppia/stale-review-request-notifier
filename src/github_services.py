@@ -189,7 +189,7 @@ def get_pull_request_object_from_dict(
             break
 
         for event in timeline_subset:
-            if event['event'] != 'assigned':
+            if event['event'] not in ('assigned', 'review_requested'):
                 continue
             updated_pr_dict = get_pull_request_dict_with_timestamp(
                 updated_pr_dict, event)
@@ -211,11 +211,12 @@ def get_pull_request_dict_with_timestamp(
     """
 
     for assignee in pr_dict['assignees']:
-        if event['assignee'] is None or assignee is None:
+        event_user = event.get('assignee') or event.get('requested_reviewer')
+        if event_user is None or assignee is None:
             # This situation can arise if a PR was reviewed by a now-deleted
             # user.
             continue
-        if event['assignee']['login'] == assignee['login']:
+        if event_user['login'] == assignee['login']:
             assignee['created_at'] = parser.parse(event['created_at'])
     return pr_dict
 
