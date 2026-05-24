@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import builtins
 import datetime
 import json
 import unittest
@@ -40,12 +39,12 @@ class TestInitServices(unittest.TestCase):
 
     def test_init_service_without_token(self) -> None:
 
-        with self.assertRaises(builtins.BaseException):
+        with self.assertRaises(Exception):
             github_services.init_service()
 
     def test_init_service_with_empty_token(self) -> None:
 
-        with self.assertRaises(builtins.BaseException):
+        with self.assertRaises(Exception):
             github_services.init_service('')
 
 
@@ -93,6 +92,10 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
             'data': {
                 'repository': {
                     'discussions': {
+                        'pageInfo': {
+                            'hasNextPage': False,
+                            'endCursor': None
+                        },
                         'nodes': [
                             {
                                 'id': 'test_discussion_id_1',
@@ -107,10 +110,7 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.response_for_delete_discussion = {
             'data': {
                 'deleteDiscussion': {
-                    'clientMutationId': 'null',
-                    'discussion': {
-                        'title': 'Pending Reviews: User-1'
-                    }
+                    'clientMutationId': 'null'
                 }
             }
         }
@@ -334,33 +334,54 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
     def test_get_discussion_ids(self) -> None:
         """Test _get_discussion_ids."""
 
-        mock_response_1 = mock.Mock()
-        mock_response_1.json.return_value = self.response_for_get_category_id
-        mock_response_2 = mock.Mock()
-        mock_response_2.json.return_value = self.response_for_get_discussion_ids
-        self.assertTrue(mock_response_1.assert_not_called)
-        self.assertTrue(mock_response_2.assert_not_called)
+        mock_response_cat = mock.Mock()
+        mock_response_cat.json.return_value = self.response_for_get_category_id
+        
+        # Mocking two pages of discussions.
+        mock_response_page1 = mock.Mock()
+        mock_response_page1.json.return_value = {
+            'data': {
+                'repository': {
+                    'discussions': {
+                        'pageInfo': {
+                            'hasNextPage': True,
+                            'endCursor': 'cursor1'
+                        },
+                        'nodes': [{'id': 'id1'}]
+                    }
+                }
+            }
+        }
+        mock_response_page2 = mock.Mock()
+        mock_response_page2.json.return_value = {
+            'data': {
+                'repository': {
+                    'discussions': {
+                        'pageInfo': {
+                            'hasNextPage': False,
+                            'endCursor': None
+                        },
+                        'nodes': [{'id': 'id2'}]
+                    }
+                }
+            }
+        }
 
         with requests_mock.Mocker() as mock_requests:
-
             self.mock_all_get_requests(mock_requests)
-
             with mock.patch('requests.post', side_effect=[
-                mock_response_1, mock_response_2]) as mock_post:
+                mock_response_cat, mock_response_page1, mock_response_page2]) as mock_post:
 
                 mocked_response = github_services._get_discussion_ids(
-                    self.org_name,
-                    self.repo_name,
-                    'test_category_name_1'
+                    self.org_name, self.repo_name, 'test_category_name_1'
                 )
-        self.assertTrue(mock_response_1.assert_called_once)
-        self.assertTrue(mock_response_2.assert_called_once)
-        self.assertEqual(mock_post.call_count, 2)
-        self.assertEqual(
-            mocked_response, [
-                'test_discussion_id_1'
-            ]
-        )
+        
+        self.assertEqual(mock_post.call_count, 3)
+        self.assertEqual(mocked_response, ['id1', 'id2'])
+
+        # Verify pagination cursor in second page request.
+        _, kwargs2 = mock_post.call_args_list[2]
+        self.assertEqual(kwargs2['json']['variables']['cursor'], 'cursor1')
 
     def test_delete_discussion(self) -> None:
         """Test _delete_discussion."""
@@ -380,22 +401,33 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertEqual(mock_post.call_count, 1)
 
     def test_delete_discussions(self) -> None:
-        """Test _delete_discussions."""
+        """Test delete_discussions."""
 
-        mock_response = mock.Mock()
-        mock_response.json.return_value = self.response_for_delete_discussion
-        self.assertTrue(mock_response.assert_not_called)
-        self.assertTrue(mock_response.assert_not_called)
+        mock_response_cat = mock.Mock()
+        mock_response_cat.json.return_value = self.response_for_get_category_id
+        mock_response_ids = mock.Mock()
+        mock_response_ids.json.return_value = self.response_for_get_discussion_ids
+        mock_response_delete = mock.Mock()
+        mock_response_delete.json.return_value = {
+            'data': {
+                'delete0': {'clientMutationId': 'null'}
+            }
+        }
 
         with requests_mock.Mocker() as mock_requests:
-
             self.mock_all_get_requests(mock_requests)
+            with mock.patch('requests.post', side_effect=[
+                mock_response_cat, mock_response_ids, mock_response_delete]) as mock_post:
 
-            with mock.patch('requests.post', side_effect=[mock_response]) as mock_post:
+                github_services.delete_discussions(
+                    self.org_name, self.repo_name, 'test_category_name_1'
+                )
+        self.assertEqual(mock_post.call_count, 3)
 
-                github_services._delete_discussion('test_discussion_id_1')
-        self.assertTrue(mock_response.assert_called_once)
-        self.assertEqual(mock_post.call_count, 1)
+        # Verify batched deletion payload.
+        _, kwargs2 = mock_post.call_args_list[2]
+        self.assertIn('delete0: deleteDiscussion', kwargs2['json']['query'])
+        self.assertEqual(kwargs2['json']['variables']['id0'], 'test_discussion_id_1')
 
     def test_create_discussion(self) -> None:
         """Test create discussion."""
