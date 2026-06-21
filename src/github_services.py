@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import builtins
 import collections
-import copy
 import datetime
 import logging
 
@@ -161,21 +160,6 @@ def get_pull_request_object_from_dict(
     activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
         org_name, repo_name, pr_number)
 
-    updated_pr_dict = copy.deepcopy(pr_dict)
-    updated_pr_dict['assignees'] = [
-        dict(assignee) for assignee in pr_dict.get('assignees', [])
-    ]
-    if 'created_at' in pr_dict:
-        pr_created = parser.parse(pr_dict['created_at'])
-        # Ensure timezone-aware datetime in UTC.
-        if pr_created.tzinfo is None:
-            pr_created = pr_created.replace(tzinfo=datetime.timezone.utc)
-        else:
-            pr_created = pr_created.astimezone(datetime.timezone.utc)
-
-        for assignee in updated_pr_dict['assignees']:
-            assignee.setdefault('created_at', pr_created)
-
     page_number = 1
     while True:
         logging.info('Fetching PR #%s timeline', pr_number)
@@ -196,8 +180,7 @@ def get_pull_request_object_from_dict(
         for event in timeline_subset:
             if event['event'] != 'assigned':
                 continue
-            updated_pr_dict = get_pull_request_dict_with_timestamp(
-                updated_pr_dict, event)
+            updated_pr_dict = get_pull_request_dict_with_timestamp(pr_dict, event)
 
         page_number += 1
 
@@ -216,21 +199,12 @@ def get_pull_request_dict_with_timestamp(
     """
 
     for assignee in pr_dict['assignees']:
-        event_user = event.get('assignee')
-        if event_user is None or assignee is None:
+        if event['assignee'] is None or assignee is None:
             # This situation can arise if a PR was reviewed by a now-deleted
             # user.
             continue
-        if event_user['login'] == assignee['login']:
-            # Parse event timestamp and ensure timezone-aware UTC.
-            event_created = parser.parse(event['created_at'])
-            if event_created.tzinfo is None:
-                event_created = event_created.replace(tzinfo=datetime.timezone.utc)
-            else:
-                event_created = event_created.astimezone(datetime.timezone.utc)
-
-            assignee['created_at'] = event_created
-
+        if event['assignee']['login'] == assignee['login']:
+            assignee['created_at'] = parser.parse(event['created_at'])
     return pr_dict
 
 @check_token

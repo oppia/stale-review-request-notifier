@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 import datetime
-from dateutil import parser
 
 from typing import Any, Dict, List, Optional, Type
 
@@ -123,23 +122,7 @@ class PullRequest:
     ) -> PullRequest:
         """Create the object using the pull_request response."""
         assignees_dict = pr_dict['assignees']
-        assignees: List[Assignee] = []
-        for a in assignees_dict:
-            created_at = a.get('created_at')
-            # Normalize created_at to a timezone-aware datetime in UTC.
-            if isinstance(created_at, str):
-                created_dt = parser.parse(created_at)
-            else:
-                created_dt = created_at
-            if created_dt is None:
-                # Fallback to now if missing for some reason.
-                created_dt = datetime.datetime.now(datetime.timezone.utc)
-            elif created_dt.tzinfo is None:
-                created_dt = created_dt.replace(tzinfo=datetime.timezone.utc)
-            else:
-                created_dt = created_dt.astimezone(datetime.timezone.utc)
-
-            assignees.append(Assignee(a['login'], created_dt))
+        assignees = [Assignee(a['login'], a['created_at']) for a in assignees_dict]
 
         pull_request = cls(
             url=pr_dict['html_url'],
