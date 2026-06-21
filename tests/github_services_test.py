@@ -305,6 +305,12 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
 
         self.assertIsInstance(response, github_domain.PullRequest)
         self.assertEqual(response.url, mocked_response['html_url'])
+        # Assignees should have been assigned the PR creation time when no
+        # explicit 'assigned' events exist in the timeline.
+        expected_time = datetime.datetime(
+            2023, 7, 31, 22, 24, 38, tzinfo=tzutc())
+        for assignee in response.assignees:
+            self.assertEqual(assignee.assigned_on_timestamp, expected_time)
 
     def test_get_prs_assigned_to_reviewers(self) -> None:
         token = 'my_github_token'
