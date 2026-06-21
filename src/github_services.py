@@ -22,6 +22,7 @@ import datetime
 import logging
 
 from typing import Any, Callable, DefaultDict, Dict, List, Optional, Union
+import copy
 from dateutil import parser
 import requests
 from src import github_domain
@@ -107,6 +108,9 @@ def get_prs_assigned_to_reviewers(
         DefaultDict[str, List[github_domain.PullRequest]]) = (
         collections.defaultdict(list))
 
+    # Ensure updated_pr_dict is always defined to avoid UnboundLocalError
+    updated_pr_dict = copy.deepcopy(pr_dict)
+
     page_number = 1
     while True:
         logging.info('Fetching Pull requests')
@@ -180,7 +184,8 @@ def get_pull_request_object_from_dict(
         for event in timeline_subset:
             if event['event'] != 'assigned':
                 continue
-            updated_pr_dict = get_pull_request_dict_with_timestamp(pr_dict, event)
+            updated_pr_dict = get_pull_request_dict_with_timestamp(
+                updated_pr_dict, event)
 
         page_number += 1
 
