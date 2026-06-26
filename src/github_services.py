@@ -18,11 +18,11 @@ from __future__ import annotations
 
 import builtins
 import collections
+import copy
 import datetime
 import logging
 
 from typing import Any, Callable, DefaultDict, Dict, List, Optional, Union
-import copy
 from dateutil import parser
 import requests
 from src import github_domain
@@ -108,9 +108,6 @@ def get_prs_assigned_to_reviewers(
         DefaultDict[str, List[github_domain.PullRequest]]) = (
         collections.defaultdict(list))
 
-    # Ensure updated_pr_dict is always defined to avoid UnboundLocalError
-    updated_pr_dict = copy.deepcopy(pr_dict)
-
     page_number = 1
     while True:
         logging.info('Fetching Pull requests')
@@ -163,6 +160,8 @@ def get_pull_request_object_from_dict(
     pr_number = pr_dict['number']
     activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
         org_name, repo_name, pr_number)
+
+    updated_pr_dict = copy.deepcopy(pr_dict)
 
     page_number = 1
     while True:
