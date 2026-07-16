@@ -163,7 +163,7 @@ def get_pull_request_object_from_dict(
 
     updated_pr_dict = copy.deepcopy(pr_dict)
 
-    timeline_event_types = []
+    timeline_event_types: List[str] = []
 
     page_number = 1
     while True:
@@ -208,7 +208,8 @@ def get_pull_request_object_from_dict(
         )
             
     return github_domain.PullRequest.from_github_response(
-        updated_pr_dict)
+        updated_pr_dict
+    )
 
 
 # Here we use type Any because the response we get from the api call is hard
