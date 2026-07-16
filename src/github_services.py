@@ -163,6 +163,8 @@ def get_pull_request_object_from_dict(
 
     updated_pr_dict = copy.deepcopy(pr_dict)
 
+    timeline_event_types = []
+
     page_number = 1
     while True:
         logging.info('Fetching PR #%s timeline', pr_number)
@@ -177,6 +179,10 @@ def get_pull_request_object_from_dict(
         response.raise_for_status()
         timeline_subset = response.json()
 
+        timeline_event_types.extend(
+            event.get('event') for event in timeline_subset
+        )
+
         if len(timeline_subset) == 0:
             break
 
@@ -188,6 +194,19 @@ def get_pull_request_object_from_dict(
 
         page_number += 1
 
+    for assignee in updated_pr_dict['assignees']:
+        if 'created_at' not in assignee:
+            logging.error(
+                'Missing assignment timestamp for PR #%s. '
+                'Assignee=%s '
+                'All assignees=%s '
+                'Timeline event types=%s',
+                pr_number,
+                assignee.get('login'),
+                [a.get('login') for a in updated_pr_dict['assignees']],
+                timeline_event_types
+        )
+            
     return github_domain.PullRequest.from_github_response(
         updated_pr_dict)
 
