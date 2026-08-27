@@ -206,7 +206,7 @@ def get_pull_request_object_from_dict(
                 [a.get('login') for a in updated_pr_dict['assignees']],
                 timeline_event_types
         )
-            
+
     return github_domain.PullRequest.from_github_response(
         updated_pr_dict
     )
