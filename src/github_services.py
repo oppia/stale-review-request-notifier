@@ -16,7 +16,6 @@
 
 from __future__ import annotations
 
-import builtins
 import collections
 import copy
 import datetime
@@ -36,6 +35,7 @@ ISSUE_TIMELINE_URL_TEMPLATE = (
     'https://api.github.com/repos/{0}/{1}/issues/{2}/timeline')
 TIMEOUT_SECS = 15
 DELETE_COMMENTS_BEFORE_IN_DAYS = 60
+DISCUSSION_DELETE_BATCH_SIZE = 10
 
 
 def init_service(token: Optional[str]=None) -> None:
@@ -48,7 +48,7 @@ def init_service(token: Optional[str]=None) -> None:
         Exception. Given GitHub token is not valid.
     """
     if token is None or token == '':
-        raise builtins.BaseException(
+        raise Exception(
             'Must provide a valid GitHub Personal Access Token.')
 
     global _TOKEN # pylint: disable=global-statement
@@ -67,7 +67,7 @@ def check_token(func: Callable[..., Any]) -> Callable[..., Any]:
     def execute_if_token_initialized(*args: Any, **kwargs: Any) -> Any:
         """Executes the given function if the token is initialized."""
         if _TOKEN is None:
-            raise builtins.BaseException(
+            raise Exception(
                 'Initialize the service with github_services.init_service(TOKEN).')
         return func(*args, **kwargs)
 
@@ -267,7 +267,7 @@ def _get_repository_id(
         data['data']['repository']['id'])
 
     if repository_id is None:
-        raise builtins.BaseException(
+        raise Exception(
             f'{org_name}/{repo_name} doesn\'t exist.')
 
     return repository_id
@@ -322,7 +322,7 @@ def _get_category_id(
             break
 
     if category_id is None:
-        raise builtins.BaseException(
+        raise Exception(
             f'{discussion_category} category is missing in GitHub Discussion.')
 
     assert category_id is not None
@@ -334,9 +334,7 @@ def _get_discussion_ids(
     repo_name: str,
     discussion_category: str,
 ) -> List[str]:
-    """Fetch discussion data from api and return corresponding discussion id and
-    discussion number.
-    """
+    """Fetch all discussion data from api and return corresponding discussion ids."""
 
     category_id = _get_category_id(org_name, repo_name, discussion_category)
 
@@ -346,41 +344,56 @@ def _get_discussion_ids(
     # https://docs.github.com/en/graphql.
 
     query = """
-        query ($org_name: String!, $repository: String!, $category_id: ID!) {
+        query ($org_name: String!, $repository: String!, $category_id: ID!, $cursor: String) {
             repository(owner: $org_name, name: $repository) {
-                discussions(categoryId: $category_id, last:100) {
+                discussions(categoryId: $category_id, first: 100, after: $cursor) {
+                    pageInfo {
+                        hasNextPage
+                        endCursor
+                    }
                     nodes {
                         id
-                        title
-                        number
                     }
                 }
             }
         }
     """
 
-    variables = {
-        'org_name': org_name,
-        'repository': repo_name,
-        'category_id': category_id
-    }
+    discussion_ids: List[str] = []
+    cursor: Optional[str] = None
+    while True:
+        variables = {
+            'org_name': org_name,
+            'repository': repo_name,
+            'category_id': category_id,
+            'cursor': cursor
+        }
 
-    response = requests.post(
-        GITHUB_GRAPHQL_URL,
-        json={'query': query, 'variables': variables},
-        headers=_get_request_headers(),
-        timeout=TIMEOUT_SECS
-    )
-    data = response.json()
-    print('--- GraphQL response ---')
-    print('Discussion ids, titles, numbers')
-    print(data)
+        response = requests.post(
+            GITHUB_GRAPHQL_URL,
+            json={'query': query, 'variables': variables},
+            headers=_get_request_headers(),
+            timeout=TIMEOUT_SECS
+        )
+        response.raise_for_status()
+        data = response.json()
 
-    discussions = data['data']['repository']['discussions']['nodes']
-    discussion_ids = [
-        discussion['id'] for discussion in discussions if discussion['id'] is not None
-    ]
+        if 'errors' in data:
+            raise Exception(
+                f'Error fetching discussions: {data["errors"]}')
 
+        discussions_data = data['data']['repository']['discussions']
+        for node in discussions_data['nodes']:
+            if node['id'] is not None:
+                discussion_ids.append(node['id'])
+
+        page_info = discussions_data['pageInfo']
+        if not page_info['hasNextPage']:
+            break
+        cursor = page_info['endCursor']
+        if cursor is None:
+            raise Exception(
+                'PageInfo says there is a next page, but endCursor is missing.')
 
     if not discussion_ids:
         logging.info('No existing discussions found')
@@ -393,10 +406,7 @@ def _delete_discussion(discussion_id: str) -> None:
     query = """
         mutation deleteDiscussion($discussion_id: ID!) {
             deleteDiscussion(input: {id: $discussion_id}) {
-                clientMutationId,
-            		discussion {
-                        title
-                }
+                clientMutationId
             }
         }
     """
@@ -411,10 +421,16 @@ def _delete_discussion(discussion_id: str) -> None:
         headers=_get_request_headers(),
         timeout=TIMEOUT_SECS
     )
+    response.raise_for_status()
+    data = response.json()
+
+    if 'errors' in data:
+        raise Exception(
+            f'Error deleting discussion {discussion_id}: {data["errors"]}')
+
     print('--- GraphQL response ---')
     print('Delete discussion')
-    print(response)
-    response.raise_for_status()
+    print(data)
 
 
 @check_token
@@ -434,8 +450,49 @@ def delete_discussions(
     print(discussion_ids)
     print()
     print()
-    for discussion_id in discussion_ids:
-        _delete_discussion(discussion_id)
+
+    # We batch the deletions to improve performance and avoid flaky timeouts.
+    # We use a smaller batch size to avoid hitting the GraphQL complexity limit.
+    for i in range(0, len(discussion_ids), DISCUSSION_DELETE_BATCH_SIZE):
+        batch = discussion_ids[i:i + DISCUSSION_DELETE_BATCH_SIZE]
+        _delete_discussions_batch(batch)
+
+
+def _delete_discussions_batch(discussion_ids: List[str]) -> None:
+    """Delete multiple GitHub Discussions in a single request."""
+
+    # Using aliases to perform multiple mutations in one request.
+    mutations = []
+    variables = {}
+    for i, discussion_id in enumerate(discussion_ids):
+        mutations.append(
+            f'delete{i}: deleteDiscussion(input: {{id: $id{i}}}) {{ clientMutationId }}'
+        )
+        variables[f'id{i}'] = discussion_id
+
+    mutations_str = '\n            '.join(mutations)
+    query = f"""
+        mutation ({', '.join([f'$id{i}: ID!' for i in range(len(discussion_ids))])}) {{
+            {mutations_str}
+        }}
+    """
+
+    response = requests.post(
+        GITHUB_GRAPHQL_URL,
+        json={'query': query, 'variables': variables},
+        headers=_get_request_headers(),
+        timeout=TIMEOUT_SECS * 2  # Larger timeout for batched requests.
+    )
+    response.raise_for_status()
+    data = response.json()
+
+    if 'errors' in data:
+        raise Exception(
+            f'Error in batch deletion: {data["errors"]}')
+
+    print('--- GraphQL response ---')
+    print('Batch delete discussions')
+    print(data)
 
 @check_token
 def create_discussion(

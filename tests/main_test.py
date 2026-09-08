@@ -110,6 +110,10 @@ class ModuleIntegrationTest(unittest.TestCase):
             'data': {
                 'repository': {
                     'discussions': {
+                        'pageInfo': {
+                            'hasNextPage': False,
+                            'endCursor': None
+                        },
                         'nodes': [
                             {
                                 'id': 'test_discussion_id_1',
@@ -124,10 +128,7 @@ class ModuleIntegrationTest(unittest.TestCase):
         self.response_for_delete_discussion = {
             'data': {
                 'deleteDiscussion': {
-                    'clientMutationId': 'null',
-                    'discussion': {
-                        'title': 'Pending Reviews: User-1'
-                    }
+                    'clientMutationId': 'null'
                 }
             }
         }
@@ -244,10 +245,18 @@ class ModuleIntegrationTest(unittest.TestCase):
 
         # Here we are mocking the POST requests that we will use in the test below.
         # and they are listed in the particular order they will be called.
+        self.response_for_batch_delete_discussion = {
+            'data': {
+                'delete0': {
+                    'clientMutationId': 'null'
+                }
+            }
+        }
+
         post_requests_side_effect_1: List[mock.Mock] = [
             self.mock_post_requests(self.response_for_get_category_ids),
             self.mock_post_requests(self.response_for_get_discussion_ids),
-            self.mock_post_requests(self.response_for_delete_discussion),
+            self.mock_post_requests(self.response_for_batch_delete_discussion),
             self.mock_post_requests(self.response_for_get_category_ids),
             self.mock_post_requests(self.response_for_get_repository_id),
             self.mock_post_requests(self.response_for_create_discussion),
@@ -256,10 +265,10 @@ class ModuleIntegrationTest(unittest.TestCase):
         post_requests_side_effect_2: List[mock.Mock] = [
             self.mock_post_requests(self.response_for_get_category_ids),
             self.mock_post_requests(self.response_for_get_repository_id),
-            self.mock_post_requests(self.response_for_delete_discussion),
+            self.mock_post_requests(self.response_for_batch_delete_discussion),
             self.mock_post_requests(self.response_for_get_category_ids),
             self.mock_post_requests(self.response_for_get_discussion_ids),
-            self.mock_post_requests(self.response_for_delete_discussion),
+            self.mock_post_requests(self.response_for_batch_delete_discussion),
             self.mock_post_requests(self.response_for_get_category_ids),
             self.mock_post_requests(self.response_for_get_repository_id),
             self.mock_post_requests(self.response_for_create_discussion),
@@ -326,7 +335,7 @@ class ModuleIntegrationTest(unittest.TestCase):
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
         self.assertEqual(
-            response_for_delete_discussion.json.return_value, self.response_for_delete_discussion)  # type: ignore[attr-defined]
+            response_for_delete_discussion.json.return_value, self.response_for_batch_delete_discussion)  # type: ignore[attr-defined]
         # Here we use MyPy ignore because the response is of Mock type and
         # Mock does not contain return_value attribute, so because of this MyPy throws an
         # error. Thus to avoid the error, we used ignore here.
