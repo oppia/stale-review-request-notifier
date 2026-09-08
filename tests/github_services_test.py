@@ -17,8 +17,10 @@
 from __future__ import annotations
 
 import builtins
+import copy
 import datetime
 import json
+import logging
 import unittest
 from unittest import mock
 from dateutil.tz import tzutc
@@ -431,3 +433,179 @@ class TestGetPrsAssignedToReviewers(unittest.TestCase):
         self.assertTrue(mock_response_2.assert_called)
         self.assertTrue(mock_response_3.assert_called)
         self.assertEqual(mock_post.call_count, 3)
+
+    def test_get_pull_request_object_does_not_mutate_input(self) -> None:
+        """Test that get_pull_request_object_from_dict does not mutate pr_dict."""
+        token = 'my_github_token'
+        github_services.init_service(token)
+
+        pr_dict = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123,
+            'title': 'PR title 1',
+            'user': {
+                'login': 'authorName',
+            },
+            'assignees': [{
+                'login': 'reviewerName1',
+            }, {
+                'login': 'reviewerName2',
+            }]
+        }
+        pr_dict_copy = copy.deepcopy(pr_dict)
+
+        with requests_mock.Mocker() as mock_request:
+            self.mock_all_get_requests(mock_request)
+            github_services.get_pull_request_object_from_dict(
+                self.org_name, self.repo_name, pr_dict
+            )
+
+        self.assertEqual(pr_dict, pr_dict_copy)
+
+    def test_timeline_event_types_collected(self) -> None:
+        """Test that timeline_event_types are collected from all events."""
+        token = 'my_github_token'
+        github_services.init_service(token)
+
+        pr_dict = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123,
+            'title': 'PR title 1',
+            'user': {
+                'login': 'authorName',
+            },
+            'assignees': [{
+                'login': 'reviewerName1',
+            }]
+        }
+
+        timeline = [
+            {'event': 'created'},
+            {
+                'event': 'assigned',
+                'assignee': {'login': 'reviewerName1'},
+                'created_at': self._get_past_time(hours=10)
+            },
+            {'event': 'cross-referenced'},
+        ]
+
+        with requests_mock.Mocker() as mock_request:
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=1&per_page=100',
+                text=json.dumps(timeline)
+            )
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=2&per_page=100',
+                text=json.dumps([])
+            )
+
+            with mock.patch('src.github_services.logging') as mock_logging:
+                github_services.get_pull_request_object_from_dict(
+                    self.org_name, self.repo_name, pr_dict
+                )
+
+        event_types = [
+            call.args[0] for call in mock_logging.info.call_args_list
+            if 'Fetching PR' not in call.args[0]
+        ]
+
+    def test_logs_error_for_missing_created_at(self) -> None:
+        """Test that logging.error is called when assignee lacks created_at."""
+        token = 'my_github_token'
+        github_services.init_service(token)
+
+        pr_dict = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123,
+            'title': 'PR title 1',
+            'user': {
+                'login': 'authorName',
+            },
+            'assignees': [{
+                'login': 'reviewerName1',
+            }]
+        }
+
+        timeline = [
+            {
+                'event': 'assigned',
+                'assignee': {'login': 'otherUser'},
+                'created_at': self._get_past_time(hours=5)
+            }
+        ]
+
+        with requests_mock.Mocker() as mock_request:
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=1&per_page=100',
+                text=json.dumps(timeline)
+            )
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=2&per_page=100',
+                text=json.dumps([])
+            )
+
+            with mock.patch('src.github_services.logging') as mock_logging:
+                with self.assertRaises(KeyError):
+                    github_services.get_pull_request_object_from_dict(
+                        self.org_name, self.repo_name, pr_dict
+                    )
+
+        error_calls = [
+            call for call in mock_logging.error.call_args_list
+        ]
+        self.assertTrue(len(error_calls) > 0)
+        self.assertIn('Missing assignment timestamp', error_calls[0].args[0])
+
+    def test_multi_page_timeline_pagination(self) -> None:
+        """Test that multiple timeline pages are fetched correctly."""
+        token = 'my_github_token'
+        github_services.init_service(token)
+
+        pr_dict = {
+            'html_url': 'https://githuburl.pull/123',
+            'number': 123,
+            'title': 'PR title 1',
+            'user': {
+                'login': 'authorName',
+            },
+            'assignees': [{
+                'login': 'reviewerName1',
+            }]
+        }
+
+        timeline_page1 = [{
+            'event': 'assigned',
+            'assignee': {'login': 'reviewerName1'},
+            'created_at': self._get_past_time(hours=10)
+        }]
+        timeline_page2 = [{
+            'event': 'closed'
+        }]
+
+        with requests_mock.Mocker() as mock_request:
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=1&per_page=100',
+                text=json.dumps(timeline_page1)
+            )
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=2&per_page=100',
+                text=json.dumps(timeline_page2)
+            )
+            mock_request.get(
+                github_services.ISSUE_TIMELINE_URL_TEMPLATE.format(
+                    self.org_name, self.repo_name, 123) + '?page=3&per_page=100',
+                text=json.dumps([])
+            )
+
+            response = github_services.get_pull_request_object_from_dict(
+                self.org_name, self.repo_name, pr_dict
+            )
+
+        self.assertIsInstance(response, github_domain.PullRequest)
+        self.assertEqual(response.pr_number, 123)
