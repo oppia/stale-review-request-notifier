@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import collections
+import copy
 import datetime
 import logging
 
@@ -160,6 +161,10 @@ def get_pull_request_object_from_dict(
     activity_url = ISSUE_TIMELINE_URL_TEMPLATE.format(
         org_name, repo_name, pr_number)
 
+    updated_pr_dict = copy.deepcopy(pr_dict)
+
+    timeline_event_types: List[str] = []
+
     page_number = 1
     while True:
         logging.info('Fetching PR #%s timeline', pr_number)
@@ -174,18 +179,37 @@ def get_pull_request_object_from_dict(
         response.raise_for_status()
         timeline_subset = response.json()
 
+        timeline_event_types.extend(
+            event.get('event') for event in timeline_subset
+        )
+
         if len(timeline_subset) == 0:
             break
 
         for event in timeline_subset:
             if event['event'] != 'assigned':
                 continue
-            updated_pr_dict = get_pull_request_dict_with_timestamp(pr_dict, event)
+            updated_pr_dict = get_pull_request_dict_with_timestamp(
+                updated_pr_dict, event)
 
         page_number += 1
 
+    for assignee in updated_pr_dict['assignees']:
+        if 'created_at' not in assignee:
+            logging.error(
+                'Missing assignment timestamp for PR #%s. '
+                'Assignee=%s '
+                'All assignees=%s '
+                'Timeline event types=%s',
+                pr_number,
+                assignee.get('login'),
+                [a.get('login') for a in updated_pr_dict['assignees']],
+                timeline_event_types
+        )
+
     return github_domain.PullRequest.from_github_response(
-        updated_pr_dict)
+        updated_pr_dict
+    )
 
 
 # Here we use type Any because the response we get from the api call is hard
